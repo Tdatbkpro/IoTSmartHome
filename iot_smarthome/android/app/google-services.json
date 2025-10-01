@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "1073957560927",
+    "project_id": "iotsmarthome-187be",
+    "storage_bucket": "iotsmarthome-187be.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:1073957560927:android:e1ceb2a3c380e47f2431ea",
+        "android_client_info": {
+          "package_name": "com.example.iot_smarthome"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA-8roIYontq-5npve6KB1MKJn3nPwKyAs"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
