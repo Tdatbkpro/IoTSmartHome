@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:iot_smarthome/Pages/OnBoarding/Widget/OnBoardingBody.dart';
-import 'package:iot_smarthome/Config/Theme.dart';
+
 class OnBoardingPage extends StatelessWidget {
   const OnBoardingPage({super.key});
 
@@ -8,7 +8,19 @@ class OnBoardingPage extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
-      body: OnBoardingBody(),
+      body: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [
+              Colors.white,
+              Colors.blue.shade50.withOpacity(0.3),
+            ],
+          ),
+        ),
+        child: OnBoardingBody(),
+      ),
     );
   }
 }

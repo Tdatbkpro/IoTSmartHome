@@ -22,7 +22,7 @@ class _ForgotPasswordWidgetState extends State<ForgotPasswordWidget> {
         children: [
           Text(
             "Nhập email để lấy lại mật khẩu",
-            style: TextStyle(color: Colors.white70),
+            // style: TextStyle(color: Colors.white70),
           ),
           SizedBox(height: 16),
           AuthUtils.buildTextField(Icons.email, "Email", emailController),
@@ -36,7 +36,7 @@ class _ForgotPasswordWidgetState extends State<ForgotPasswordWidget> {
           SizedBox(height: 10),
           TextButton(
             onPressed: widget.onBack,
-            child: Text("Quay lại đăng nhập", style: TextStyle(color: Colors.white70)),
+            child: Text("Quay lại đăng nhập"), //style: TextStyle(color: Colors.white70)),
           ),
         ],
       ),

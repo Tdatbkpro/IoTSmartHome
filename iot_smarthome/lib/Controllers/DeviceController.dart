@@ -1,10 +1,14 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_database/firebase_database.dart';
+import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:iot_smarthome/Config/Icons.dart';
 import 'package:iot_smarthome/Models/DeviceStatusModel.dart';
 import 'package:iot_smarthome/Models/HomeModel.dart';
 import 'package:iot_smarthome/Models/RoomModel.dart';
+import 'package:iot_smarthome/Pages/Home/Dialog.dart';
 import 'package:uuid/uuid.dart';
 
 class DeviceController extends GetxController {
@@ -103,6 +107,34 @@ class DeviceController extends GetxController {
 
 
   // ==================== ROOMS ====================
+
+  /// Stream trả về danh sách các phòng mà user được phép truy cập (bao gồm cả devices)
+Stream<List<RoomModel>> streamSharedRooms() {
+  final uid = FirebaseAuth.instance.currentUser?.uid;
+  if (uid == null) return Stream.value([]);
+
+  final firestore = FirebaseFirestore.instance;
+
+  return firestore.collectionGroup('Rooms').snapshots().asyncMap((snapshot) async {
+    final rooms = <RoomModel>[];
+
+    for (final doc in snapshot.docs) {
+      final data = doc.data();
+      final room = RoomModel.fromMap(doc.id, data);
+      if (room.allowedUsers.contains(uid)) {
+        final devicesSnap = await doc.reference.collection('devices').get();
+        final devices = devicesSnap.docs
+            .map((d) => Device.fromMap(d.id, d.data(), room.id))
+            .toList();
+        rooms.add(room.copyWithDevices(devices));
+      }
+    }
+
+    return rooms;
+  });
+}
+
+
   Stream<List<RoomModel>> streamRooms(String homeId) {
   return firestore.collection("Homes/$homeId/Rooms").snapshots().map(
     (snap) => snap.docs
@@ -125,7 +157,7 @@ class DeviceController extends GetxController {
     final devicesSnap = await firestore.collection("Homes/$homeId/Rooms/$roomId/devices").get();
 
     for (var doc in devicesSnap.docs) {
-      await realtime.ref("Status/$roomId/${doc.id}").remove();
+      await realtime.ref("Status/$homeId/$roomId/${doc.id}").remove();
       await firestore.doc("Homes/$homeId/Rooms/$roomId/devices/${doc.id}").delete();
     }
 
@@ -141,6 +173,132 @@ class DeviceController extends GetxController {
             .map((doc) => Device.fromMap(doc.id, doc.data(), roomId))
             .toList());
   }
+
+        void handleVoiceCommand(
+        BuildContext context,
+        String homeId,
+        String roomId,
+        String command,
+        void Function(List<Device>) onConfirm, // ✅ callback trả về list
+      ) async {
+        final devices = await streamDevices(homeId, roomId).first;
+        final cmd = command.toLowerCase();
+
+        // Ưu tiên tìm đúng cả tên + loại
+        final exactMatch = devices.firstWhere(
+          (d) {
+            final name = (d.name ?? "").toLowerCase();
+            final type = (d.type ?? "").toLowerCase();
+            return cmd.contains(name) && cmd.contains(type);
+          },
+          orElse: () => Device(id: "", name: null, type: null, roomId: roomId),
+        );
+
+        List<Device> matchedDevices = [];
+
+        if (exactMatch.id.isNotEmpty) {
+          matchedDevices = [exactMatch];
+        } else {
+          matchedDevices = devices.where((d) {
+            final type = (d.type ?? "").toLowerCase();
+            return cmd.contains(type);
+          }).toList();
+        }
+
+        // ✅ show dialog cho phép chọn
+        _showListDevice(context, matchedDevices, onConfirm);
+      }
+
+        void _showListDevice(
+        BuildContext context,
+        List<Device> listDevice,
+        void Function(List<Device>) onConfirm,
+      ) {
+        if (listDevice.isEmpty) {
+          DialogUtils.showConfirmDialog(
+            context,
+            "Không tìm thấy",
+            const Text("❌ Không có thiết bị nào phù hợp!"),
+            () {},
+          );
+          return;
+        }
+
+        // giữ trạng thái thiết bị được chọn
+        final selected = <Device>{};
+
+        showDialog(
+          context: context,
+          builder: (ctx) {
+            return AlertDialog(
+              title: const Text("Chọn thiết bị để điều khiển"),
+              content: SizedBox(
+                width: double.maxFinite,
+                height: 200,
+                child: StatefulBuilder(
+                  builder: (ctx, setState) {
+                    return ListView.builder(
+                      itemCount: listDevice.length,
+                      itemBuilder: (context, index) {
+                        final device = listDevice[index];
+                        final isSelected = selected.contains(device);
+
+                        return Row(
+                          children: [
+                            CircleAvatar(
+                              maxRadius: 18,
+                              backgroundColor: Colors.transparent, // nền trong suốt
+                              child: Image.asset(
+                                getDeviceIcon(device.type!, false) ?? "",
+                                fit: BoxFit.contain,
+                              ),
+                            ),
+
+                            Expanded(
+                              child: CheckboxListTile(
+                                value: isSelected,
+                                checkColor: Colors.amberAccent,
+                                title: Text(device.name ?? "Unknown", style: Theme.of(context).textTheme.bodyLarge,),
+                                dense: true,
+                                autofocus: true,
+                                hoverColor: Colors.blueAccent,
+                                subtitle: Text(device.type ?? "Unknown type", style: Theme.of(context).textTheme.bodyMedium,),
+                                onChanged: (checked) {
+                                  setState(() {
+                                    if (checked == true) {
+                                      selected.add(device);
+                                    } else {
+                                      selected.remove(device);
+                                    }
+                                  });
+                                },
+                              ),
+                            ),
+                          ],
+                        );
+                      },
+                    );
+                  },
+                ),
+              ),
+              actions: [
+                TextButton(
+                  child: const Text("Hủy"),
+                  onPressed: () => Navigator.pop(ctx),
+                ),
+                ElevatedButton(
+                  child: const Text("Xác nhận"),
+                  onPressed: () {
+                    Navigator.pop(ctx);
+                    onConfirm(selected.toList()); // ✅ trả về list thiết bị được chọn
+                  },
+                ),
+              ],
+            );
+          },
+        );
+      }
+
 
   Future<void> addDevice(String homeId, String roomId, Device device) async {
     final deviceId = device.id.isEmpty ? uuid.v4() : device.id;
@@ -159,7 +317,7 @@ class DeviceController extends GetxController {
 
   Future<void> deleteDevice(String homeId, String roomId, String deviceId) async {
     await firestore.doc("Homes/$homeId/Rooms/$roomId/devices/$deviceId").delete();
-    await realtime.ref("Status/$roomId/$deviceId").remove();
+    await realtime.ref("Status/$homeId/$roomId/$deviceId").remove();
   }
 
   // ==================== STATUS ====================
@@ -174,8 +332,10 @@ class DeviceController extends GetxController {
 
 
   Future<void> updateStatus(
-      String homeId, String roomId, String deviceId, Map<String, dynamic> data) async {
-    await realtime.ref("Status/$homeId/$roomId/$deviceId").update(data);
+      String homeId, String roomId, String deviceId, DeviceStatus deviceStatus) async {
+    await realtime.ref("Status/$homeId/$roomId/$deviceId").update(
+      deviceStatus.toMap()
+    );
   }
   Future<void> addSchedule({
   required String homeId,
@@ -188,7 +348,7 @@ class DeviceController extends GetxController {
   .collection("Homes/$homeId/Rooms/$roomId/schedules")
   .add({
     "deviceId": deviceId,
-    "status": action,
+    "status": action == 1 ? true: false,
     "time": Timestamp.fromDate(time),
     "done": false,
     "createdAt": FieldValue.serverTimestamp(),

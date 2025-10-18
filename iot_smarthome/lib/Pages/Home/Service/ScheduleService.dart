@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:get/get.dart';
 import 'package:iot_smarthome/Controllers/DeviceController.dart';
+import 'package:iot_smarthome/Models/DeviceStatusModel.dart';
 
 class ScheduleService {
   static final deviceController = Get.put(DeviceController());
@@ -27,12 +28,16 @@ class ScheduleService {
         // Nếu lịch hẹn trong vòng 10 giây kể từ mốc hẹn, thực hiện
         if (diffSeconds >= 0 && diffSeconds <= checkInterval.inSeconds) {
           // Cập nhật trạng thái thiết bị
-          await deviceController.updateStatus(homeId, roomId, deviceId, {
-            "status":status
-          });
+          await deviceController.updateStatus(homeId, roomId, deviceId, 
+            DeviceStatus(status: status ? true : false)
+          );
 
           // Đánh dấu schedule đã thực hiện
           await doc.reference.update({"done": true});
+
+          // ✅ Ngừng timer sau khi thực hiện
+          timer.cancel();
+          break;
         }
       }
     });

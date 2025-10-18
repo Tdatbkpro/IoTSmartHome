@@ -47,19 +47,34 @@ class ProfilePage extends StatelessWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        FutureBuilder<User?>(
-                          future:firebaseUser != null
-                        ? authController.getUserById(firebaseUser!.uid) // 👈 lấy user Firestore
-                        : null,
+                        StreamBuilder<User?>(
+                                stream: firebaseUser != null
+                                    ? authController.getUserByIdStream(firebaseUser!.uid) // 👈 stream realtime user
+                                    : const Stream.empty(), // nếu chưa đăng nhập thì không lắng nghe gì
 
-                           builder: (context,snapshot) {
-                            final user = snapshot.data;
-                            return Text(
-                              user?.name ?? firebaseUser?.displayName ?? firebaseUser?.email ?? "Guest",
-                        style: AppTextStyles.title,
+                                builder: (context, snapshot) {
+                                  if (snapshot.connectionState == ConnectionState.waiting) {
+                                    return const CircularProgressIndicator();
+                                  }
 
-                            );
-                           }),
+                                  if (snapshot.hasError) {
+                                    return Text(
+                                      "Lỗi: ${snapshot.error}",
+                                      style: AppTextStyles.title,
+                                    );
+                                  }
+
+                                  final user = snapshot.data;
+
+                                  return Text(
+                                    user?.name ?? 
+                                    firebaseUser?.displayName ?? 
+                                    firebaseUser?.email ?? 
+                                    "Guest",
+                                    style: AppTextStyles.title,
+                                  );
+                                },
+                              ),
                         const SizedBox(height: 4),
                         Text(
                           firebaseUser?.email ?? "",

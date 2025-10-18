@@ -1,6 +1,8 @@
 import 'package:get/get_navigation/src/routes/get_route.dart';
 import 'package:get/route_manager.dart';
 import 'package:iot_smarthome/Pages/Home/HomePage.dart';
+import 'package:iot_smarthome/Pages/Home/Service/VoiceAssistantTTS.dart';
+import 'package:iot_smarthome/Pages/Home/Widget/ScanQRCodePage.dart';
 import 'package:iot_smarthome/Pages/OnBoarding/Widget/OnBoardingPage.dart';
 import 'package:iot_smarthome/Pages/SlacePage.dart';
 import 'package:iot_smarthome/Pages/User/AuthPage.dart';
@@ -23,6 +25,18 @@ var pagePath = [
   page: () =>  AuthPage(),
   transition: Transition.fadeIn,
   transitionDuration: Duration(microseconds: 400)
+  
+  ),
+  GetPage(name: "/voiceAssistant", 
+  page: () =>  VoiceAssistantTTS(),
+  transition: Transition.fadeIn,
+  transitionDuration: Duration(microseconds: 400)
+  
+  ),
+    GetPage(name: "/scan", 
+  page: () =>  ScanQRCodePage(),
+  transition: Transition.fadeIn,
+  transitionDuration: Duration(microseconds: 200)
   
   ),
   GetPage(name: "/homePage" 

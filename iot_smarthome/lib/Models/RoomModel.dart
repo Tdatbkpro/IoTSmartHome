@@ -7,22 +7,43 @@ class RoomModel {
   final String type;
   final String? image;
   final String? description;
+  final String? hoomId; // 🆕 thêm trường ownerId
+  final List<String> allowedUsers;
+  final List<Device> devices; // giữ nguyên
 
   RoomModel({
     required this.id,
-    this.image,
-    required this.type,
     required this.name,
+    required this.type,
+    this.image,
     this.description,
+    this.hoomId, // 🆕 thêm vào constructor
+    this.allowedUsers = const [],
+    this.devices = const [],
   });
+
+  RoomModel copyWithDevices(List<Device> newDevices) {
+    return RoomModel(
+      id: id,
+      name: name,
+      type: type,
+      image: image,
+      description: description,
+      hoomId: hoomId, // 🆕 thêm
+      allowedUsers: allowedUsers,
+      devices: newDevices,
+    );
+  }
 
   factory RoomModel.fromMap(String id, Map<String, dynamic> map) {
     return RoomModel(
       id: id,
       image: map['image'],
       name: map['name'] ?? 'Unknown Room',
-      description: map['description'] ?? '', 
+      description: map['description'] ?? '',
       type: map['type'] ?? 'Unknown Room',
+      hoomId: map['hoomId'], // 🆕 đọc từ Firestore hoặc JSON
+      allowedUsers: List<String>.from(map['allowedUsers'] ?? []),
     );
   }
 
@@ -31,10 +52,13 @@ class RoomModel {
       'type': type,
       'name': name,
       'description': description,
-      'image': image
+      'image': image,
+      'hoomId': hoomId, // 🆕 thêm vào khi lưu
+      'allowedUsers': allowedUsers,
     };
   }
 }
+
 
 
 class Device {

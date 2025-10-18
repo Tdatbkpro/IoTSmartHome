@@ -23,30 +23,7 @@ class _SlacePageState extends State<SlacePage> {
       body: Column(
       
         children: [
-          Padding(
-            padding: const EdgeInsets.all(10.0),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                ClipOval(
-              child: Image.asset(
-                AssetImages.logoApp, // ảnh avatar
-                width: 40,
-                height: 40,
-                fit: BoxFit.cover,
-              ),
-            
-                    ),
-            // ClipRRect(
-            // borderRadius: BorderRadius.circular(16), // bo 16px
-            // child: Image.asset(
-            //   AssetImages.bannerApp, // ảnh banner
-            //   fit: BoxFit.cover,
-            // ),
-            //         )
-              ],
-            ),
-          ),
+          
           Expanded(
             child: Center(
                 child: Column(
@@ -54,7 +31,7 @@ class _SlacePageState extends State<SlacePage> {
                   children: [
                     // Animation IoT
                     Lottie.asset(
-                      'lotties/Home.json',
+                      'assets/lotties/Home.json',
                       width: 300,
                       height: 300,
                       repeat: true,

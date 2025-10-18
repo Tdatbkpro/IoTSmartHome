@@ -6,14 +6,14 @@ class AuthUtils {
     return TextFormField(
       controller: controller,
       obscureText: isPassword ? obscureText : false,
-      style: TextStyle(color: Colors.white),
+      //style: TextStyle(color: Colors.white),
       decoration: InputDecoration(
         labelText: label,
-        labelStyle: TextStyle(color: Colors.white70),
-        prefixIcon: Icon(icon, color: Colors.white70),
+        //labelStyle: TextStyle(color: Colors.white70),
+        prefixIcon: Icon(icon),
         suffixIcon: isPassword
             ? IconButton(
-                icon: Icon(obscureText ? Icons.visibility_off : Icons.visibility, color: Colors.white70),
+                icon: Icon(obscureText ? Icons.visibility_off : Icons.visibility),
                 onPressed: toggleObscure,
               )
             : null,
@@ -63,3 +63,4 @@ class AuthUtils {
     );
   }
 }
+ 

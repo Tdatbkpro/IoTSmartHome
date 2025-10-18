@@ -18,22 +18,29 @@ class AppIcons {
 String? getDeviceIcon(String type, bool isOn) {
   switch (type) {
     case "Đèn":
+    case "Light":
       return isOn ? AppIcons.lightOn : AppIcons.lightOff;
     case "Quạt":
+    case "Fan":
       return isOn ? AppIcons.fanOn : AppIcons.fanOff;
     case "Thùng rác":
+    case "Trash":
       return isOn ? AppIcons.trashOpen : AppIcons.trashClose;
     case "TV":
       return AppIcons.tv;
     case "Chống trộm":
+    case "Security":
         return isOn ? AppIcons.securityOn : AppIcons.securityOff;
     case "RFID":
       return AppIcons.rfid;
-    case "Loa (Speaker)":
+    case "Loa":
+    case "Speaker":
       return AppIcons.speaker;
-    case "Cảm biến nhiệt độ & độ ẩm":
+    case "Cảm biến nhiệt độ và độ ẩm":
+    case "Temperature Humidity Sensor":
       return AppIcons.tempHumidity;
     case "Cảm biến khí gas":
+    case "Gas Sensor":
         return isOn ? AppIcons.gas_sensorOn : AppIcons.gas_sensorOff;
     default:
       return null;

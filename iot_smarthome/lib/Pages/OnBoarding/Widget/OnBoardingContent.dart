@@ -1,68 +1,115 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:iot_smarthome/Config/Texts.dart';
+
 class OnBoardingContent extends StatelessWidget {
   final Size size;
-  final String? title, image,subtitle, step;
-  const OnBoardingContent({super.key, required this.size, this.title, this.image, this.subtitle, this.step});
+  final String? title, image, subtitle, step;
+  const OnBoardingContent({
+    super.key,
+    required this.size,
+    this.title,
+    this.image,
+    this.subtitle,
+    this.step,
+  });
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Padding(
-          padding: EdgeInsets.symmetric(
-              horizontal: size.width * 0.08, vertical: size.height * 0.015),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              step != "1" ?  InkWell(
-                child: Icon(
-                Icons.arrow_back,
-                
-                size: 30,
-                color: Colors.black38,
+    return Container(
+      padding: EdgeInsets.symmetric(horizontal: size.width * 0.08),
+      child: Column(
+        children: [
+          // Image Section
+          Expanded(
+            flex: 3,
+            child: Container(
+              margin: EdgeInsets.only(bottom: size.height * 0.04),
+              child: Stack(
+                children: [
+                  // Background decoration
+                  Positioned(
+                    bottom: 0,
+                    left: size.width * 0.1,
+                    right: size.width * 0.1,
+                    child: Container(
+                      height: size.height * 0.25,
+                      decoration: BoxDecoration(
+                        gradient: LinearGradient(
+                          begin: Alignment.topCenter,
+                          end: Alignment.bottomCenter,
+                          colors: [
+                            Colors.blue.withOpacity(0.1),
+                            Colors.blue.withOpacity(0.05),
+                          ],
+                        ),
+                        borderRadius: BorderRadius.circular(40),
+                      ),
+                    ),
+                  ),
+                  
+                  // Image
+                  Center(
+                    child: Image.asset(
+                      image!,
+                      height: size.height * 0.35,
+                      fit: BoxFit.contain,
+                      filterQuality: FilterQuality.high,
+                    ),
+                  ),
+                ],
               ),
-              onTap: () {
-                Get.toNamed("/slace");
-              },
-              ):Container(),
-              Text(
-                "Step $step",
-                style: AppTextStyles.body.copyWith(
-                  color: Colors.blue,
-                  fontWeight: FontWeight.bold,
+            ),
+          ),
+          
+          // Text Content Section
+          Expanded(
+            flex: 2,
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.start,
+              children: [
+                // Title
+                Text(
+                  title!,
+                  style: TextStyle(
+                    fontSize: 28,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.grey[800],
+                    height: 1.2,
+                  ),
+                  textAlign: TextAlign.center,
                 ),
-              ),
-            ],
+                
+                SizedBox(height: 16),
+                
+                // Divider
+                Container(
+                  width: 60,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: Colors.blue,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+                
+                SizedBox(height: 24),
+                
+                // Subtitle
+                Text(
+                  subtitle!,
+                  style: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w400,
+                    color: Colors.grey[600],
+                    height: 1.5,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+              ],
+            ),
           ),
-        ),
-        Expanded(
-          child: Image.asset(
-            image!,
-            //width: double.infinity,
-            alignment: Alignment.center,
-            fit:BoxFit.fitWidth
-          ),
-        ),
-        SizedBox(height: size.height * 0.03),
-        Text(
-          title!,
-          style: AppTextStyles.body,
-        ),
-        Divider(
-          thickness: 2.0,
-          color: Colors.blue,
-          endIndent: size.width * 0.4,
-          indent: size.width * 0.4,
-        ),
-        SizedBox(height: size.height * 0.03),
-        Text(
-          subtitle!,
-          textAlign: TextAlign.center,
-          style: AppTextStyles.body.copyWith(fontSize: 18),
-        ),
-      ],
+        ],
+      ),
     );
   }
 }

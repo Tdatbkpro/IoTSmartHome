@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:get/get_utils/get_utils.dart';
 import 'package:iot_smarthome/Config/Images.dart';
 import 'package:iot_smarthome/Config/Theme.dart';
+import 'package:lottie/lottie.dart';
 import './Widgets/Login.dart';
 import './Widgets/Register.dart';
 import './Widgets/ForgotPassword.dart';
@@ -24,19 +26,28 @@ class _AuthPageState extends State<AuthPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppTheme.darkTheme.scaffoldBackgroundColor,
+      //backgroundColor: AppTheme.darkTheme.scaffoldBackgroundColor,
       body: Center(
         child: SingleChildScrollView(
           padding: EdgeInsets.symmetric(horizontal: 24),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Image.asset(AssetImages.logoApp,),
+              Lottie.asset(
+                      'assets/lotties/smarthome.json',
+                      width: 200,
+                      height: 200,
+                      repeat: true,
+                      onLoaded: (composition) {
+                        Future.delayed(const Duration(seconds: 3), () {
+                          // Navigator.pushReplacementNamed(context, '/home');
+                        });
+                      },
+                    ),
               SizedBox(height: 16),
               Text(
-                "SmartHome",
-                style: TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.bold),
-              ),
+                "Smart Home",
+               style: Theme.of(context).textTheme.displayMedium),
               SizedBox(height: 40),
               // Toggle login/register
               if (currentView != "forgot")
@@ -77,7 +88,7 @@ class _AuthPageState extends State<AuthPage> {
         child: Text(
           text,
           style: TextStyle(
-            color: isSelected ? Colors.black : Colors.white,
+            color: isSelected ? Colors.black : const Color.fromARGB(255, 106, 54, 54),
             fontWeight: FontWeight.bold,
           ),
         ),
