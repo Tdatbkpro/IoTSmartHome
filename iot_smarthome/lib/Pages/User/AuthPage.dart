@@ -1,7 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:get/get_utils/get_utils.dart';
-import 'package:iot_smarthome/Config/Images.dart';
-import 'package:iot_smarthome/Config/Theme.dart';
 import 'package:lottie/lottie.dart';
 import './Widgets/Login.dart';
 import './Widgets/Register.dart';

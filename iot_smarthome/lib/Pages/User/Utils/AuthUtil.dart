@@ -36,8 +36,8 @@ class AuthUtils {
       height: 50,
       child: ElevatedButton(
         style: ButtonStyle(
-          padding: MaterialStateProperty.all(EdgeInsets.zero),
-          shape: MaterialStateProperty.all(
+          padding: WidgetStateProperty.all(EdgeInsets.zero),
+          shape: WidgetStateProperty.all(
             RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
           ),
         ),

@@ -12,76 +12,6 @@ import 'package:uuid/uuid.dart';
 class DialogUtils {
   static final  deviceController = Get.put(DeviceController()); 
   static final auth = FirebaseAuth.instance;
-  static void showEditHomeDialog(BuildContext context, HomeModel home) {
-    final nameCtrl = TextEditingController(text: home.name);
-    final imageCtrl = TextEditingController(text: home.image ?? "");
-    final pickImageController = PickImageController();
-
-    /// Tạo RxString để quan sát ảnh
-    final RxString imageUrl = (home.image ?? "").obs;
-
-    showDialog(
-      context: context,
-      builder: (_) => AlertDialog(
-        title: const Text("Sửa home"),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            TextField(
-              controller: nameCtrl,
-              decoration: const InputDecoration(labelText: "Tên home"),
-            ),
-            const SizedBox(height: 16),
-
-            /// Preview ảnh với Obx
-            Obx(() {
-              if (imageUrl.value.isNotEmpty) {
-                return Image.network(
-                  imageUrl.value,
-                  height: 100,
-                  fit: BoxFit.cover,
-                );
-              } else {
-                return const SizedBox.shrink();
-              }
-            }),
-
-            TextButton.icon(
-              onPressed: () async {
-                final url = await pickImageController.pickImageFileAndUpload();
-                if (url != null && url.isNotEmpty) {
-                  imageUrl.value = url;     // cập nhật ảnh preview
-                  imageCtrl.text = url;     // cập nhật controller để lưu
-                }
-              },
-              icon: const Icon(Icons.image),
-              label: const Text("Sửa ảnh"),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text("Hủy"),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              final updated = HomeModel(
-                id: home.id,
-                name: nameCtrl.text.trim(),
-                ownerId: home.ownerId,
-                image: imageUrl.value.isNotEmpty ? imageUrl.value : null,
-                rooms: home.rooms,
-              );
-              deviceController.updateHome(updated);
-              Navigator.pop(context);
-            },
-            child: const Text("Lưu"),
-          ),
-        ],
-      ),
-    );
-  }
 
 static void showAddDeviceDialog(
     BuildContext context, String homeId, String roomId) {
@@ -260,7 +190,7 @@ static void showAddDeviceDialog(
                   const SizedBox(height: 16),
 
                   DropdownButtonFormField<String>(
-                    value: selectedType,
+                    initialValue: selectedType,
                     isExpanded: true,
                     decoration: InputDecoration(
                       labelText: "Loại thiết bị",
@@ -529,7 +459,7 @@ static void showConfirmDialog(
                 ),
                 const SizedBox(height: 8),
                 DropdownButtonFormField<String>(
-                  value: selectedType,
+                  initialValue: selectedType,
                   decoration: const InputDecoration(labelText: "Loại phòng"),
                   items: const [
                     DropdownMenuItem(
@@ -651,7 +581,7 @@ static void showConfirmDialog(
             ),
             const SizedBox(height: 12),
             DropdownButtonFormField<String>(
-              value: selectedType,
+              initialValue: selectedType,
               decoration: const InputDecoration(labelText: "Loại phòng"),
               items: const [
                 DropdownMenuItem(value: "Phòng khách", child: Text("Phòng khách")),
@@ -731,12 +661,925 @@ static void showConfirmDialog(
   );
 }
 }
+
+class AddRoomDialog {
+  static void show(BuildContext context, String homeId) {
+    final nameCtrl = TextEditingController();
+    String? imageRoom;
+    final pickImageController = Get.put(PickImageController());
+    String selectedType = "Phòng khách";
+    final DeviceController deviceController = Get.put(DeviceController());
+
+    // Danh sách loại phòng với icon
+    final List<Map<String, dynamic>> roomTypes = [
+      {
+        'value': 'Phòng khách',
+        'label': 'Phòng khách',
+        'icon': Icons.living_outlined,
+        'color': Colors.blue,
+      },
+      {
+        'value': 'Phòng ngủ',
+        'label': 'Phòng ngủ',
+        'icon': Icons.bed_outlined,
+        'color': Colors.purple,
+      },
+      {
+        'value': 'Phòng ăn',
+        'label': 'Phòng ăn',
+        'icon': Icons.dining_outlined,
+        'color': Colors.orange,
+      },
+      {
+        'value': 'Nhà bếp',
+        'label': 'Nhà bếp',
+        'icon': Icons.kitchen_outlined,
+        'color': Colors.green,
+      },
+      {
+        'value': 'Phòng tắm',
+        'label': 'Phòng tắm',
+        'icon': Icons.bathtub_outlined,
+        'color': Colors.teal,
+      },
+      {
+        'value': 'Phòng làm việc',
+        'label': 'Phòng làm việc',
+        'icon': Icons.work_outline,
+        'color': Colors.indigo,
+      },
+      {
+        'value': 'Sân/Vườn',
+        'label': 'Sân/Vườn',
+        'icon': Icons.yard_outlined,
+        'color': Colors.lightGreen,
+      },
+      {
+        'value': 'Hành lang',
+        'label': 'Hành lang',
+        'icon': Icons.door_front_door_outlined,
+        'color': Colors.brown,
+      },
+    ];
+
+    showDialog(
+      context: context,
+      barrierColor: Colors.black.withOpacity(0.5),
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return Dialog(
+              insetPadding: const EdgeInsets.all(20),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+              ),
+              elevation: 0,
+              backgroundColor: Colors.transparent,
+              child: Container(
+                constraints: BoxConstraints(
+                  maxWidth: MediaQuery.of(context).size.width > 600 ? 500 : double.infinity,
+                ),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).dialogBackgroundColor,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // Header
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(20),
+                        decoration: BoxDecoration(
+                          color: Theme.of(context).primaryColor,
+                          borderRadius: const BorderRadius.only(
+                            topLeft: Radius.circular(20),
+                            topRight: Radius.circular(20),
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.add_rounded,
+                              color: Colors.white,
+                              size: 28,
+                            ),
+                            const SizedBox(width: 12),
+                            const Text(
+                              "Thêm Phòng Mới",
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      Padding(
+                        padding: const EdgeInsets.all(24),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            // Tên phòng
+                            Text(
+                              "Tên phòng *",
+                              style: TextStyle(
+                                fontWeight: FontWeight.w600,
+                                color: Colors.grey[700],
+                                fontSize: 14,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            TextField(
+                              controller: nameCtrl,
+                              decoration: InputDecoration(
+                                hintText: "Nhập tên phòng...",
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  borderSide: BorderSide(color: Colors.grey[400]!),
+                                ),
+                                focusedBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  borderSide: BorderSide(color: Theme.of(context).primaryColor),
+                                ),
+                                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                              ),
+                            ),
+                            const SizedBox(height: 20),
+
+                            // Loại phòng
+                            Text(
+                              "Loại phòng",
+                              style: TextStyle(
+                                fontWeight: FontWeight.w600,
+                                color: Colors.grey[700],
+                                fontSize: 14,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            SizedBox(
+                              height: 200,
+                              child: GridView.builder(
+                                physics: const NeverScrollableScrollPhysics(),
+                                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                                  crossAxisCount: MediaQuery.of(context).size.width > 400 ? 4 : 3,
+                                  crossAxisSpacing: 8,
+                                  mainAxisSpacing: 8,
+                                  childAspectRatio: 0.8,
+                                ),
+                                itemCount: roomTypes.length,
+                                itemBuilder: (context, index) {
+                                  final type = roomTypes[index];
+                                  final isSelected = selectedType == type['value'];
+                                  
+                                  return GestureDetector(
+                                    onTap: () {
+                                      setState(() {
+                                        selectedType = type['value'] as String;
+                                      });
+                                    },
+                                    child: Container(
+                                      decoration: BoxDecoration(
+                                        color: isSelected 
+                                            ? (type['color'] as Color).withOpacity(0.1)
+                                            : Colors.grey[50],
+                                        borderRadius: BorderRadius.circular(12),
+                                        border: Border.all(
+                                          color: isSelected 
+                                              ? type['color'] as Color
+                                              : Colors.grey[300]!,
+                                          width: isSelected ? 2 : 1,
+                                        ),
+                                      ),
+                                      child: Column(
+                                        mainAxisAlignment: MainAxisAlignment.center,
+                                        children: [
+                                          Icon(
+                                            type['icon'] as IconData,
+                                            color: isSelected 
+                                                ? type['color'] as Color
+                                                : Colors.grey[600],
+                                            size: 24,
+                                          ),
+                                          const SizedBox(height: 8),
+                                          Text(
+                                            type['label'] as String,
+                                            style: TextStyle(
+                                              fontSize: 11,
+                                              fontWeight: FontWeight.w500,
+                                              color: isSelected 
+                                                  ? type['color'] as Color
+                                                  : Colors.grey[700],
+                                            ),
+                                            textAlign: TextAlign.center,
+                                            maxLines: 2,
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  );
+                                },
+                              ),
+                            ),
+                            const SizedBox(height: 20),
+
+                            // Ảnh phòng
+                            Text(
+                              "Ảnh phòng",
+                              style: TextStyle(
+                                fontWeight: FontWeight.w600,
+                                color: Colors.grey[700],
+                                fontSize: 14,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            
+                            if (imageRoom == null)
+                              Container(
+                                width: double.infinity,
+                                height: 120,
+                                decoration: BoxDecoration(
+                                  border: Border.all(
+                                    color: Colors.grey[300]!,
+                                    style: BorderStyle.solid,
+                                  ),
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: TextButton(
+                                  onPressed: () async {
+                                    final url = await pickImageController.pickImageFileAndUpload();
+                                    if (url != null && url.isNotEmpty) {
+                                      setState(() {
+                                        imageRoom = url;
+                                      });
+                                    }
+                                  },
+                                  style: TextButton.styleFrom(
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                  ),
+                                  child: Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Icon(
+                                        Icons.camera_alt_outlined,
+                                        color: Colors.grey[400],
+                                        size: 32,
+                                      ),
+                                      const SizedBox(height: 8),
+                                      Text(
+                                        "Thêm ảnh phòng",
+                                        style: TextStyle(
+                                          color: Colors.grey[600],
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              )
+                            else
+                              Container(
+                                width: double.infinity,
+                                height: 150,
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(color: Colors.grey[300]!),
+                                ),
+                                child: Stack(
+                                  children: [
+                                    // Ảnh
+                                    ClipRRect(
+                                      borderRadius: BorderRadius.circular(12),
+                                      child: Image.network(
+                                        imageRoom!,
+                                        width: double.infinity,
+                                        height: double.infinity,
+                                        fit: BoxFit.cover,
+                                        errorBuilder: (context, error, stackTrace) {
+                                          return Container(
+                                            color: Colors.grey[200],
+                                            child: const Icon(
+                                              Icons.error_outline,
+                                              color: Colors.red,
+                                              size: 40,
+                                            ),
+                                          );
+                                        },
+                                      ),
+                                    ),
+                                    
+                                    // Nút xóa ảnh
+                                    Positioned(
+                                      top: 8,
+                                      right: 8,
+                                      child: Container(
+                                        decoration: BoxDecoration(
+                                          color: Colors.black.withOpacity(0.6),
+                                          shape: BoxShape.circle,
+                                        ),
+                                        child: IconButton(
+                                          icon: const Icon(
+                                            Icons.close,
+                                            color: Colors.white,
+                                            size: 20,
+                                          ),
+                                          onPressed: () {
+                                            setState(() {
+                                              imageRoom = null;
+                                            });
+                                          },
+                                        ),
+                                      ),
+                                    ),
+                                    
+                                    // Nút đổi ảnh
+                                    Positioned(
+                                      bottom: 8,
+                                      right: 8,
+                                      child: Container(
+                                        decoration: BoxDecoration(
+                                          color: Colors.black.withOpacity(0.6),
+                                          borderRadius: BorderRadius.circular(20),
+                                        ),
+                                        child: IconButton(
+                                          icon: const Icon(
+                                            Icons.camera_alt_outlined,
+                                            color: Colors.white,
+                                            size: 20,
+                                          ),
+                                          onPressed: () async {
+                                            final url = await pickImageController.pickImageFileAndUpload();
+                                            if (url != null && url.isNotEmpty) {
+                                              setState(() {
+                                                imageRoom = url;
+                                              });
+                                            }
+                                          },
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+
+                      // Buttons
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                        decoration: BoxDecoration(
+                          border: Border(top: BorderSide(color: Colors.grey[200]!)),
+                        ),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: OutlinedButton(
+                                onPressed: () => Navigator.pop(context),
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: Colors.grey[700],
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  padding: const EdgeInsets.symmetric(vertical: 12),
+                                  side: BorderSide(color: Colors.grey[400]!),
+                                ),
+                                child: const Text(
+                                  "Hủy",
+                                  style: TextStyle(fontWeight: FontWeight.w600),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: ElevatedButton(
+                                onPressed: nameCtrl.text.trim().isEmpty ? null : () {
+                                  final room = RoomModel(
+                                    id: const Uuid().v4(),
+                                    name: nameCtrl.text.trim(),
+                                    image: imageRoom,
+                                    type: selectedType,
+                                    hoomId: homeId,
+                                  );
+                                  deviceController.addRoom(homeId, room);
+                                  Navigator.pop(context);
+                                  
+                                  // Hiển thị thông báo thành công
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text('Đã thêm phòng "${nameCtrl.text.trim()}"'),
+                                      backgroundColor: Colors.green,
+                                      behavior: SnackBarBehavior.floating,
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                    ),
+                                  );
+                                },
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Theme.of(context).primaryColor,
+                                  foregroundColor: Colors.white,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  padding: const EdgeInsets.symmetric(vertical: 12),
+                                  elevation: 0,
+                                ),
+                                child: const Text(
+                                  "Thêm Phòng",
+                                  style: TextStyle(fontWeight: FontWeight.w600),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+}
+
+class EditRoomDialog {
+  static void show(BuildContext context, String homeId, RoomModel room) {
+    final nameCtrl = TextEditingController(text: room.name);
+    String selectedType = room.type ?? "Phòng khách";
+    String? imageUrl = room.image;
+    final DeviceController deviceController = Get.put(DeviceController());
+    final PickImageController pickImageController = Get.put(PickImageController());
+
+    // Danh sách loại phòng với icon (giống dialog thêm phòng)
+    final List<Map<String, dynamic>> roomTypes = [
+      {
+        'value': 'Phòng khách',
+        'label': 'Phòng khách',
+        'icon': Icons.living_outlined,
+        'color': Colors.blue,
+      },
+      {
+        'value': 'Phòng ngủ',
+        'label': 'Phòng ngủ',
+        'icon': Icons.bed_outlined,
+        'color': Colors.purple,
+      },
+      {
+        'value': 'Phòng ăn',
+        'label': 'Phòng ăn',
+        'icon': Icons.dining_outlined,
+        'color': Colors.orange,
+      },
+      {
+        'value': 'Nhà bếp',
+        'label': 'Nhà bếp',
+        'icon': Icons.kitchen_outlined,
+        'color': Colors.green,
+      },
+      {
+        'value': 'Phòng tắm',
+        'label': 'Phòng tắm',
+        'icon': Icons.bathtub_outlined,
+        'color': Colors.teal,
+      },
+      {
+        'value': 'Phòng làm việc',
+        'label': 'Phòng làm việc',
+        'icon': Icons.work_outline,
+        'color': Colors.indigo,
+      },
+      {
+        'value': 'Sân/Vườn',
+        'label': 'Sân/Vườn',
+        'icon': Icons.yard_outlined,
+        'color': Colors.lightGreen,
+      },
+      {
+        'value': 'Hành lang',
+        'label': 'Hành lang',
+        'icon': Icons.door_front_door_outlined,
+        'color': Colors.brown,
+      },
+    ];
+
+    showDialog(
+      context: context,
+      barrierColor: Colors.black.withOpacity(0.5),
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return Dialog(
+              insetPadding: const EdgeInsets.all(20),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(20),
+              ),
+              elevation: 0,
+              backgroundColor: Colors.transparent,
+              child: Container(
+                constraints: BoxConstraints(
+                  maxWidth: MediaQuery.of(context).size.width > 600 ? 500 : double.infinity,
+                ),
+                decoration: BoxDecoration(
+                  color: Theme.of(context).dialogBackgroundColor,
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      // Header
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(20),
+                        decoration: BoxDecoration(
+                          color: Theme.of(context).primaryColor,
+                          borderRadius: const BorderRadius.only(
+                            topLeft: Radius.circular(20),
+                            topRight: Radius.circular(20),
+                          ),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(
+                              Icons.edit_rounded,
+                              color: Colors.white,
+                              size: 28,
+                            ),
+                            const SizedBox(width: 12),
+                            const Text(
+                              "Chỉnh Sửa Phòng",
+                              style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+
+                      Padding(
+                        padding: const EdgeInsets.all(24),
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            // Tên phòng
+                            Text(
+                              "Tên phòng *",
+                              style: TextStyle(
+                                fontWeight: FontWeight.w600,
+                                color: Colors.grey[700],
+                                fontSize: 14,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            TextField(
+                              controller: nameCtrl,
+                              decoration: InputDecoration(
+                                hintText: "Nhập tên phòng...",
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  borderSide: BorderSide(color: Colors.grey[400]!),
+                                ),
+                                focusedBorder: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                  borderSide: BorderSide(color: Theme.of(context).primaryColor),
+                                ),
+                                contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                              ),
+                            ),
+                            const SizedBox(height: 20),
+
+                            // Loại phòng
+                            Text(
+                              "Loại phòng",
+                              style: TextStyle(
+                                fontWeight: FontWeight.w600,
+                                color: Colors.grey[700],
+                                fontSize: 14,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            SizedBox(
+                              height: 200,
+                              child: GridView.builder(
+                                physics: const NeverScrollableScrollPhysics(),
+                                gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                                  crossAxisCount: MediaQuery.of(context).size.width > 400 ? 4 : 3,
+                                  crossAxisSpacing: 8,
+                                  mainAxisSpacing: 8,
+                                  childAspectRatio: 0.8,
+                                ),
+                                itemCount: roomTypes.length,
+                                itemBuilder: (context, index) {
+                                  final type = roomTypes[index];
+                                  final isSelected = selectedType == type['value'];
+                                  
+                                  return GestureDetector(
+                                    onTap: () {
+                                      setState(() {
+                                        selectedType = type['value'] as String;
+                                      });
+                                    },
+                                    child: Container(
+                                      decoration: BoxDecoration(
+                                        color: isSelected 
+                                            ? (type['color'] as Color).withOpacity(0.1)
+                                            : Colors.grey[50],
+                                        borderRadius: BorderRadius.circular(12),
+                                        border: Border.all(
+                                          color: isSelected 
+                                              ? type['color'] as Color
+                                              : Colors.grey[300]!,
+                                          width: isSelected ? 2 : 1,
+                                        ),
+                                      ),
+                                      child: Column(
+                                        mainAxisAlignment: MainAxisAlignment.center,
+                                        children: [
+                                          Icon(
+                                            type['icon'] as IconData,
+                                            color: isSelected 
+                                                ? type['color'] as Color
+                                                : Colors.grey[600],
+                                            size: 24,
+                                          ),
+                                          const SizedBox(height: 8),
+                                          Text(
+                                            type['label'] as String,
+                                            style: TextStyle(
+                                              fontSize: 11,
+                                              fontWeight: FontWeight.w500,
+                                              color: isSelected 
+                                                  ? type['color'] as Color
+                                                  : Colors.grey[700],
+                                            ),
+                                            textAlign: TextAlign.center,
+                                            maxLines: 2,
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  );
+                                },
+                              ),
+                            ),
+                            const SizedBox(height: 20),
+
+                            // Ảnh phòng
+                            Text(
+                              "Ảnh phòng",
+                              style: TextStyle(
+                                fontWeight: FontWeight.w600,
+                                color: Colors.grey[700],
+                                fontSize: 14,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            
+                            if (imageUrl == null)
+                              Container(
+                                width: double.infinity,
+                                height: 120,
+                                decoration: BoxDecoration(
+                                  border: Border.all(
+                                    color: Colors.grey[300]!,
+                                    style: BorderStyle.solid,
+                                  ),
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                                child: TextButton(
+                                  onPressed: () async {
+                                    final url = await pickImageController.pickImageFileAndUpload();
+                                    if (url != null && url.isNotEmpty) {
+                                      setState(() {
+                                        imageUrl = url;
+                                      });
+                                    }
+                                  },
+                                  style: TextButton.styleFrom(
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                  ),
+                                  child: Column(
+                                    mainAxisAlignment: MainAxisAlignment.center,
+                                    children: [
+                                      Icon(
+                                        Icons.camera_alt_outlined,
+                                        color: Colors.grey[400],
+                                        size: 32,
+                                      ),
+                                      const SizedBox(height: 8),
+                                      Text(
+                                        "Thêm ảnh phòng",
+                                        style: TextStyle(
+                                          color: Colors.grey[600],
+                                          fontWeight: FontWeight.w500,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              )
+                            else
+                              Container(
+                                width: double.infinity,
+                                height: 150,
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(color: Colors.grey[300]!),
+                                ),
+                                child: Stack(
+                                  children: [
+                                    // Ảnh
+                                    ClipRRect(
+                                      borderRadius: BorderRadius.circular(12),
+                                      child: Image.network(
+                                        imageUrl!,
+                                        width: double.infinity,
+                                        height: double.infinity,
+                                        fit: BoxFit.cover,
+                                        errorBuilder: (context, error, stackTrace) {
+                                          return Container(
+                                            color: Colors.grey[200],
+                                            child: Column(
+                                              mainAxisAlignment: MainAxisAlignment.center,
+                                              children: [
+                                                Icon(
+                                                  Icons.error_outline,
+                                                  color: Colors.red,
+                                                  size: 40,
+                                                ),
+                                                const SizedBox(height: 8),
+                                                Text(
+                                                  "Không thể tải ảnh",
+                                                  style: TextStyle(
+                                                    color: Colors.grey[600],
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          );
+                                        },
+                                      ),
+                                    ),
+                                    
+                                    // Nút xóa ảnh
+                                    Positioned(
+                                      top: 8,
+                                      right: 8,
+                                      child: Container(
+                                        decoration: BoxDecoration(
+                                          color: Colors.black.withOpacity(0.6),
+                                          shape: BoxShape.circle,
+                                        ),
+                                        child: IconButton(
+                                          icon: const Icon(
+                                            Icons.close,
+                                            color: Colors.white,
+                                            size: 20,
+                                          ),
+                                          onPressed: () {
+                                            setState(() {
+                                              imageUrl = null;
+                                            });
+                                          },
+                                        ),
+                                      ),
+                                    ),
+                                    
+                                    // Nút đổi ảnh
+                                    Positioned(
+                                      bottom: 8,
+                                      right: 8,
+                                      child: Container(
+                                        decoration: BoxDecoration(
+                                          color: Colors.black.withOpacity(0.6),
+                                          borderRadius: BorderRadius.circular(20),
+                                        ),
+                                        child: IconButton(
+                                          icon: const Icon(
+                                            Icons.camera_alt_outlined,
+                                            color: Colors.white,
+                                            size: 20,
+                                          ),
+                                          onPressed: () async {
+                                            final url = await pickImageController.pickImageFileAndUpload();
+                                            if (url != null && url.isNotEmpty) {
+                                              setState(() {
+                                                imageUrl = url;
+                                              });
+                                            }
+                                          },
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+
+                      // Buttons
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                        decoration: BoxDecoration(
+                          border: Border(top: BorderSide(color: Colors.grey[200]!)),
+                        ),
+                        child: Row(
+                          children: [
+                            Expanded(
+                              child: OutlinedButton(
+                                onPressed: () => Navigator.pop(context),
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: Colors.grey[700],
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  padding: const EdgeInsets.symmetric(vertical: 12),
+                                  side: BorderSide(color: Colors.grey[400]!),
+                                ),
+                                child: const Text(
+                                  "Hủy",
+                                  style: TextStyle(fontWeight: FontWeight.w600),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: ElevatedButton(
+                                onPressed: nameCtrl.text.trim().isEmpty ? null : () {
+                                  final updatedRoom = RoomModel(
+                                    id: room.id,
+                                    name: nameCtrl.text.trim(),
+                                    type: selectedType,
+                                    image: imageUrl,
+                                    hoomId: room.hoomId,
+                                    devices: room.devices, // Giữ nguyên devices
+                                  );
+                                  
+                                  deviceController.updateRoom(homeId, updatedRoom);
+                                  Navigator.pop(context);
+                                  
+                                  // Hiển thị thông báo thành công
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text('Đã cập nhật phòng "${nameCtrl.text.trim()}"'),
+                                      backgroundColor: Colors.green,
+                                      behavior: SnackBarBehavior.floating,
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                    ),
+                                  );
+                                },
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: Theme.of(context).primaryColor,
+                                  foregroundColor: Colors.white,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                  padding: const EdgeInsets.symmetric(vertical: 12),
+                                  elevation: 0,
+                                ),
+                                child: const Text(
+                                  "Lưu Thay Đổi",
+                                  style: TextStyle(fontWeight: FontWeight.w600),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+  }
+}
 class FullScreenImagePage extends StatelessWidget {
   final String imageUrl;
   final String heroTag;
 
-  const FullScreenImagePage({required this.imageUrl, required this.heroTag, Key? key})
-      : super(key: key);
+  const FullScreenImagePage({required this.imageUrl, required this.heroTag, super.key});
 
   @override
   Widget build(BuildContext context) {

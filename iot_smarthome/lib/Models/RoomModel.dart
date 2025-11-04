@@ -1,4 +1,3 @@
-import 'package:flutter/material.dart';
 
 /// RoomModel (Firestore)
 class RoomModel {
@@ -36,16 +35,17 @@ class RoomModel {
   }
 
   factory RoomModel.fromMap(String id, Map<String, dynamic> map) {
-    return RoomModel(
-      id: id,
-      image: map['image'],
-      name: map['name'] ?? 'Unknown Room',
-      description: map['description'] ?? '',
-      type: map['type'] ?? 'Unknown Room',
-      hoomId: map['hoomId'], // 🆕 đọc từ Firestore hoặc JSON
-      allowedUsers: List<String>.from(map['allowedUsers'] ?? []),
-    );
-  }
+  return RoomModel(
+    id: id,
+    image: map['image'],
+    name: map['name'] ?? 'Unknown Room',
+    description: map['description'] ?? '',
+    type: map['type'] ?? 'Unknown Room',
+    hoomId: map['hoomId'],
+    allowedUsers: List<String>.from(map['allowedUsers'] ?? []),
+    devices:  [], // sẽ load sau
+  );
+}
 
   Map<String, dynamic> toMap() {
     return {

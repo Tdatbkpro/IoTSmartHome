@@ -5,10 +5,13 @@ import 'dart:math';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:geocoding/geocoding.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart';
 import 'package:image_gallery_saver_plus/image_gallery_saver_plus.dart';
+import 'package:iot_smarthome/Pages/Home/Widget/ConfigHome.dart';
 import 'package:iot_smarthome/Pages/Home/Widget/CreateQrDevice.dart';
-import 'package:iot_smarthome/Pages/Home/Widget/NotificationsPage.dart';
+import 'package:iot_smarthome/Pages/Notification/NotificationsPage.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:animations/animations.dart';
 import 'package:convex_bottom_bar/convex_bottom_bar.dart';
@@ -24,13 +27,14 @@ import 'package:iot_smarthome/Models/DeviceStatusModel.dart';
 import 'package:iot_smarthome/Models/HomeModel.dart';
 import 'package:iot_smarthome/Models/RoomModel.dart';
 import 'package:iot_smarthome/Pages/Home/Dialog.dart';
-import 'package:iot_smarthome/Pages/Home/Widget/ProfilePage.dart';
+import 'package:iot_smarthome/Pages/Profile/ProfilePage.dart';
 import 'package:iot_smarthome/Pages/Home/Widget/RoomDetailPage.dart';
-import 'package:iot_smarthome/Pages/Home/Widget/SettingPage.dart';
+import 'package:iot_smarthome/Pages/Settings/SettingPage.dart';
 import 'package:lottie/lottie.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:share_plus/share_plus.dart';
+//import 'package:syncfusion_flutter_charts/charts.dart';
 import 'package:uuid/uuid.dart';
 import '../../Models/UserModel.dart';
 import 'package:flutter/material.dart';
@@ -44,7 +48,7 @@ import 'package:kf_drawer/kf_drawer.dart';
 
 // ---------------- Home Dashboard ----------------
 class HomeDashboard extends StatefulWidget {
-  const HomeDashboard({Key? key}) : super(key: key);
+  const HomeDashboard({super.key});
 
   @override
   State<HomeDashboard> createState() => _HomeDashboardState();
@@ -227,7 +231,7 @@ ImageProvider _getUserImage(User? user) {
                 (context, index) {
                   final home = homes[index];
                   return Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
                     child: _buildHomeSection(home),
                   );
                 },
@@ -274,118 +278,11 @@ ImageProvider _getUserImage(User? user) {
         ],
       );
     }),
-      floatingActionButton: FloatingActionButton(
-      onPressed: () {
-        final pickImageController = Get.put(PickImageController());
-        final nameCtrl = TextEditingController();
-        String? imageHome;
-
-        showGeneralDialog(
-          context: context,
-          barrierDismissible: true,
-          barrierLabel: "Add Home",
-          barrierColor: Colors.black.withOpacity(0.5),
-          transitionDuration: const Duration(milliseconds: 300),
-          pageBuilder: (context, animation, secondaryAnimation) {
-            return Center(
-              child: ConstrainedBox(
-                constraints: BoxConstraints(
-                  maxWidth: MediaQuery.of(context).size.width * 0.85,
-                ),
-                child: Material(
-                  color: Theme.of(context).dialogBackgroundColor,
-                  borderRadius: BorderRadius.circular(20),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 20, horizontal: 24),
-                    child: StatefulBuilder(
-                      builder: (context, setState) {
-                        return Column(
-                          mainAxisSize: MainAxisSize.min,
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            const Text(
-                              "Thêm Home",
-                              style: TextStyle(
-                                fontSize: 20,
-                                fontWeight: FontWeight.bold,
-                              ),
-                              textAlign: TextAlign.center,
-                            ),
-                            const SizedBox(height: 16),
-                            TextField(
-                              controller: nameCtrl,
-                              decoration: const InputDecoration(
-                                labelText: "Tên Home",
-                                border: OutlineInputBorder(),
-                                isDense: true,
-                              ),
-                            ),
-                            const SizedBox(height: 16),
-                            if (imageHome != null)
-                              Image.network(
-                                imageHome!,
-                                height: 200,
-                                width: 200,
-                                fit: BoxFit.fill,
-                              ),
-                            TextButton.icon(
-                              onPressed: () async {
-                                final url = await pickImageController.pickImageFileAndUpload();
-                                if (!mounted) return; // kiểm tra trước khi setState
-                                if (url != null && url.isNotEmpty) {
-                                  setState(() {
-                                    imageHome = url;
-                                  });
-                                }
-                              },
-                              icon: const Icon(Icons.image),
-                              label: const Text("Chọn ảnh"),
-                            ),
-                            const SizedBox(height: 20),
-                            Row(
-                              mainAxisAlignment: MainAxisAlignment.end,
-                              children: [
-                                TextButton(
-                                  onPressed: () => Navigator.pop(context),
-                                  child: const Text("Hủy"),
-                                ),
-                                const SizedBox(width: 8),
-                                ElevatedButton(
-                                  onPressed: () {
-                                    if (nameCtrl.text.trim().isEmpty) return; // validate
-                                    final home = HomeModel(
-                                      id: const Uuid().v4(),
-                                      name: nameCtrl.text.trim(),
-                                      ownerId: firebaseUser!.uid,
-                                      image: imageHome,
-                                    );
-                                    deviceController.addHome(home);
-                                    Navigator.pop(context);
-                                  },
-                                  child: const Text("Thêm"),
-                                ),
-                              ],
-                            ),
-                          ],
-                        );
-                      },
-                    ),
-                  ),
-                ),
-              ),
-            );
-          },
-          transitionBuilder: (context, animation, secondaryAnimation, child) {
-            final curved = CurvedAnimation(parent: animation, curve: Curves.easeOutBack);
-            return FadeTransition(
-              opacity: animation,
-              child: ScaleTransition(scale: curved, child: child),
-            );
-          },
-        );
-      },
-      child: const Icon(Icons.add),
-    ),
+floatingActionButton: FloatingActionButton(onPressed: () {
+  AddHomePage(isAddHome: true).show(context);
+} ,
+  child: Icon(Icons.add_rounded),
+)
     );
   }
 
@@ -407,7 +304,7 @@ Future<void> _shareRoom(BuildContext context, HomeModel home, String roomId) asy
   final qrKey = GlobalKey();
 
   // Hàm chụp ảnh QR code
-  Future<Uint8List?> _captureQRCode() async {
+  Future<Uint8List?> captureQRCode() async {
     try {
       final RenderRepaintBoundary boundary = qrKey.currentContext!.findRenderObject() as RenderRepaintBoundary;
       final ui.Image image = await boundary.toImage(pixelRatio: 3.0);
@@ -421,7 +318,7 @@ Future<void> _shareRoom(BuildContext context, HomeModel home, String roomId) asy
   }
 
   // Hàm tải QR code và lưu vào gallery
-  Future<void> _downloadQRCode() async {
+  Future<void> downloadQRCode() async {
   try {
     // 🔹 Kiểm tra và xin quyền lưu ảnh
     PermissionStatus status;
@@ -441,7 +338,7 @@ Future<void> _shareRoom(BuildContext context, HomeModel home, String roomId) asy
 
     if (status.isGranted) {
       // 🔹 Tạo ảnh QR từ widget (nếu có)
-      final Uint8List? qrBytes = await _captureQRCode();
+      final Uint8List? qrBytes = await captureQRCode();
       if (qrBytes == null) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -496,9 +393,9 @@ Future<void> _shareRoom(BuildContext context, HomeModel home, String roomId) asy
 
 
   // Hàm chia sẻ QR code
-  Future<void> _shareQRCode() async {
+  Future<void> shareQRCode() async {
     try {
-      final Uint8List? qrBytes = await _captureQRCode();
+      final Uint8List? qrBytes = await captureQRCode();
       if (qrBytes != null) {
         // Tạo file tạm để chia sẻ
         final directory = await getTemporaryDirectory();
@@ -698,7 +595,7 @@ Future<void> _shareRoom(BuildContext context, HomeModel home, String roomId) asy
                         "Lưu vào Gallery",
                         style: TextStyle(color: Colors.blue.shade700),
                       ),
-                      onPressed: _downloadQRCode,
+                      onPressed: downloadQRCode,
                       style: OutlinedButton.styleFrom(
                         padding: const EdgeInsets.symmetric(vertical: 12),
                         shape: RoundedRectangleBorder(
@@ -719,7 +616,7 @@ Future<void> _shareRoom(BuildContext context, HomeModel home, String roomId) asy
                         "Chia sẻ",
                         style: TextStyle(color: Colors.white),
                       ),
-                      onPressed: _shareQRCode,
+                      onPressed: shareQRCode,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.blue.shade600,
                         padding: const EdgeInsets.symmetric(vertical: 12),
@@ -779,7 +676,7 @@ Future<void> _shareRoom(BuildContext context, HomeModel home, String roomId) asy
                 ),
               );
             },
-            child: Container(
+            child: SizedBox(
               height: 160,
               width: double.infinity, // Chiếm toàn bộ chiều ngang
               child: Stack(
@@ -833,15 +730,15 @@ Future<void> _shareRoom(BuildContext context, HomeModel home, String roomId) asy
                 topRight: Radius.circular(20),
               ),
               color: isDarkMode 
-                ? Theme.of(context).colorScheme.surfaceVariant
+                ? Theme.of(context).colorScheme.surfaceContainerHighest
                 : Colors.grey.shade100,
               gradient: LinearGradient(
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
                 colors: isDarkMode
                   ? [
-                      Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.8),
-                      Theme.of(context).colorScheme.surfaceVariant.withOpacity(0.6),
+                      Theme.of(context).colorScheme.surfaceContainerHighest.withOpacity(0.8),
+                      Theme.of(context).colorScheme.surfaceContainerHighest.withOpacity(0.6),
                     ]
                   : [
                       Colors.grey.shade100,
@@ -901,13 +798,15 @@ Future<void> _shareRoom(BuildContext context, HomeModel home, String roomId) asy
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
                       color: isDarkMode
-                        ? Theme.of(context).colorScheme.surfaceVariant
+                        ? Theme.of(context).colorScheme.surfaceContainerHighest
                         : Colors.grey.shade100,
                     ),
                     child: PopupMenuButton<String>(
                       onSelected: (val) {
                         if (val == "delete") deviceController.deleteHome(home.id);
-                        if (val == "update") DialogUtils.showEditHomeDialog(context, home);
+                        if (val == "update") {
+                          AddHomePage(homeModel: home,isAddHome: false).show(context);
+                        };
                       },
                       icon: Icon(
                         Icons.more_vert_rounded,
@@ -968,56 +867,63 @@ Future<void> _shareRoom(BuildContext context, HomeModel home, String roomId) asy
 
               // Rooms section
               StreamBuilder<List<RoomModel>>(
-                stream: deviceController.streamRooms(home.id),
-                builder: (context, snapshot) {
-                  if (!snapshot.hasData) {
-                    return Center(
-                      child: CircularProgressIndicator(
-                        color: Theme.of(context).colorScheme.primary,
-                      ),
-                    );
-                  }
-                  
-                  final rooms = snapshot.data!;
-                  return Column(
-                    children: [
-                      if (rooms.isNotEmpty) ...[
-                        ...rooms.map((room) => _buildRoomSection(home, room)).toList(),
-                        const SizedBox(height: 16),
-                      ],
-                      
-                      // Add room button
-                      Container(
-                        width: double.infinity, // Chiếm toàn bộ chiều ngang
-                        child: ElevatedButton.icon(
-                          onPressed: () => DialogUtils.showAddRoomDialog(context, home.id),
-                          icon: Icon(
-                            Icons.add_circle_outline,
+              stream: deviceController.streamRooms(home.id),
+              builder: (context, snapshot) {
+                // // Nếu đang load dữ liệu
+                // if (snapshot.connectionState == ConnectionState.waiting) {
+                //   return const Center(child: CircularProgressIndicator());
+                // }
+
+                // Nếu có dữ liệu
+                final rooms = snapshot.data ?? [];
+
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Nếu không có phòng nào -> hiển thị thông báo
+                    if (rooms.isEmpty)
+                      const Center(
+                        child: Text("Không có phòng nào!"),
+                      )
+                    else
+                      // Hiển thị danh sách phòng
+                      ...rooms.map((room) => _buildRoomSection(home, room)),
+
+                    const SizedBox(height: 16),
+
+                    // Nút thêm phòng mới (luôn hiển thị)
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton.icon(
+                        onPressed: () => AddRoomDialog.show(context, home.id),
+                        icon: Icon(
+                          Icons.add_circle_outline,
+                          color: Theme.of(context).colorScheme.onPrimary,
+                        ),
+                        label: Text(
+                          "Thêm phòng mới",
+                          style: TextStyle(
+                            fontWeight: FontWeight.w600,
                             color: Theme.of(context).colorScheme.onPrimary,
                           ),
-                          label: Text(
-                            "Thêm phòng mới",
-                            style: TextStyle(
-                              fontWeight: FontWeight.w600,
-                              color: Theme.of(context).colorScheme.onPrimary,
-                            ),
+                        ),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Theme.of(context).colorScheme.primary,
+                          foregroundColor: Theme.of(context).colorScheme.onPrimary,
+                          padding: const EdgeInsets.symmetric(vertical: 7, horizontal: 8),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
                           ),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: Theme.of(context).colorScheme.primary,
-                            foregroundColor: Theme.of(context).colorScheme.onPrimary,
-                            padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 16),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12),
-                            ),
-                            elevation: 0,
-                            shadowColor: Colors.transparent,
-                          ),
+                          elevation: 0,
+                          shadowColor: Colors.transparent,
                         ),
                       ),
-                    ],
-                  );
-                },
-              ),
+                    ),
+                  ],
+                );
+              },
+            )
+
             ],
           ),
         ),
@@ -1100,12 +1006,13 @@ Future<void> _shareRoom(BuildContext context, HomeModel home, String roomId) asy
                 ),
                 PopupMenuButton<String>(
                   onSelected: (val) {
-                    if (val == "edit") DialogUtils.showEditRoomDialog(context, home.id, room);
+                    if (val == "edit") EditRoomDialog.show(context, home.id, room);
+
                     if (val == "delete") deviceController.deleteRoom(home.id, room.id);
                     if (val == "share") _shareRoom(context,home, room.id);
                   },
                   itemBuilder: (context) => const [
-                    PopupMenuItem(value: "edit", child: Text("Sửa")),
+                    PopupMenuItem(value: "edit", child: Text("Sửa phòng")),
                     PopupMenuItem(value: "delete", child: Text("Xóa")),
                     PopupMenuItem(value: "share", child: Text("Chia sẻ")),
                   ],
@@ -1242,120 +1149,274 @@ Future<void> _shareRoom(BuildContext context, HomeModel home, String roomId) asy
   
  Widget _buildDeviceCard(
     String homeId, String roomId, Device device, DeviceStatus status) {
-  return ConstrainedBox(
-    constraints: const BoxConstraints(
-      minWidth: 120,
-      minHeight: 160,
-      maxWidth: 180,
-    ),
-    child: Container(
-      margin: const EdgeInsets.all(6),
-      decoration: BoxDecoration(
-        color: status.status ? Colors.blue.shade600 : Colors.grey.shade500,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            blurRadius: 6,
-            offset: const Offset(2, 2),
-          ),
-        ],
-      ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 5),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // --- Icon + Menu ---
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-               CircleAvatar(
-                radius: 30,
-                backgroundColor: Colors.transparent,
-                child: Image.asset(
-                  getDeviceIcon(device.type!, status.status) ?? "assets/icons/default.png",
-                  width: 32,
-                  height: 32,
-                  fit: BoxFit.contain,
-                ),
-              ),
+  final width = MediaQuery.of(context).size.width;
+  final isTablet = width > 600;
+  final isSmallDevice = width < 350;
 
-                const Spacer(),
-                PopupMenuButton<String>(
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(6),
-                  ),
-                  icon: const Icon(Icons.more_vert, color: Colors.white, size: 20),
-                  onSelected: (value) async {
-                    if (value == "delete") {
-                      await deviceController.deleteDevice(
-                          homeId, roomId, device.id);
-                    }
-                    // TODO: edit device
-                  },
-                  itemBuilder: (context) => const [
-                    PopupMenuItem(value: "delete", child: Text("Xóa")),
-                  ],
-                ),
-              ],
-            ),
+  return LayoutBuilder(
+    builder: (context, constraints) {
+      final cardWidth = constraints.maxWidth;
+      final isVeryNarrow = cardWidth < 140;
 
-            const SizedBox(height: 10),
-
-            // --- Tên thiết bị ---
-            Flexible(
-              child: Text(
-                "${DialogUtils.reverseDeviceTypeMap[device.type] ?? 'Thiết bị'} - ${device.name ?? 'Unknown'}",
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w500,
-                ),
-                maxLines: 3,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ),
-
-            const SizedBox(height: 10,),
-
-            // --- Switch ---
-            Align(
-              alignment: Alignment.center,
-              child: Switch.adaptive(
-                value: status.status? true : false,
-                activeColor: const Color.fromARGB(255, 99, 207, 69),
-                inactiveThumbColor: const Color.fromARGB(255, 99, 207, 69),
-                onChanged: (val) {
-                print(status);
-                  // if (device.type == "Fan") {
-                  //   deviceController.updateStatus(homeId, roomId, device.id,
-                  //   DeviceStatus(status: val,speed: Random().nextInt(100).toDouble()));
-                  // } else if  (device.type == "Gas Sensor"){
-                  //    deviceController.updateStatus(homeId, roomId, device.id,
-                  //    DeviceStatus(status: val,CO2: Random().nextInt(100).toDouble())
-                  //    );
-                  // } else if (device.type == "Temperature Humidity Sensor") {
-                  //   deviceController.updateStatus(homeId, roomId, device.id,
-                  //   DeviceStatus(status: val,
-                  //   temperature: Random().nextInt(100).toDouble(),
-                  //   humidity:  Random().nextInt(100).toDouble()
-                    
-                  //   )
-                  //    );} else {
-                     deviceController.updateStatus(homeId, roomId, device.id,
-                     DeviceStatus(status: val
-                     ));
-                 // }
-                },
-              ),
+      return Container(
+        margin: const EdgeInsets.all(6),
+        decoration: BoxDecoration(
+          color: status.status ? Colors.blue.shade600 : Colors.grey.shade500,
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.1),
+              blurRadius: 6,
+              offset: const Offset(2, 2),
             ),
           ],
         ),
-      ),
-    ),
+        child: Padding(
+          padding: isVeryNarrow 
+              ? const EdgeInsets.symmetric(vertical: 4, horizontal: 3)
+              : const EdgeInsets.symmetric(vertical: 6, horizontal: 5),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // --- Icon + Menu ---
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Container(
+                    width: isVeryNarrow ? 24 : (isSmallDevice ? 28 : 32),
+                    height: isVeryNarrow ? 24 : (isSmallDevice ? 28 : 32),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withOpacity(0.2),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Center(
+                      child: Image.asset(
+                        getDeviceIcon(device.type!, status.status) ?? "assets/icons/default.png",
+                        width: isVeryNarrow ? 16 : (isSmallDevice ? 20 : 24),
+                        height: isVeryNarrow ? 16 : (isSmallDevice ? 20 : 24),
+                        fit: BoxFit.contain,
+                      ),
+                    ),
+                  ),
+                  const Spacer(),
+                  if (!isVeryNarrow) // Ẩn menu trên màn hình rất nhỏ
+                    PopupMenuButton<String>(
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      iconSize: isSmallDevice ? 16 : 20,
+                      icon: Icon(Icons.more_vert, color: Colors.white, size: isSmallDevice ? 16 : 20),
+                      onSelected: (value) async {
+                        if (value == "delete") {
+                          await deviceController.deleteDevice(homeId, roomId, device.id);
+                        }
+                      },
+                      itemBuilder: (context) => [
+                        PopupMenuItem(
+                          value: "delete",
+                          child: Text(
+                            "Xóa",
+                            style: TextStyle(fontSize: isSmallDevice ? 12 : 14),
+                          ),
+                        ),
+                      ],
+                    ),
+                ],
+              ),
+
+              SizedBox(height: isVeryNarrow ? 2 : (isSmallDevice ? 3 : 5)),
+
+              // --- Tên thiết bị ---
+              Flexible(
+                child: Text(
+                  _getDeviceDisplayName(device),
+                  textAlign: TextAlign.center,
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: _getFontSizeForDevice(cardWidth, device.type!),
+                    fontWeight: FontWeight.w500,
+                  ),
+                  maxLines: _getMaxLinesForDevice(device.type!),
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+
+              SizedBox(height: isVeryNarrow ? 2 : (isSmallDevice ? 3 : 5)),
+
+              // --- Hiển thị thông tin theo loại thiết bị ---
+              _buildDeviceSpecificInfo(device, status, isVeryNarrow, isSmallDevice),
+
+              SizedBox(height: isVeryNarrow ? 2 : (isSmallDevice ? 3 : 5)),
+
+              // --- Control (Switch/Slider/Value) ---
+              _buildDeviceControl(homeId, roomId, device, status, isVeryNarrow, isSmallDevice),
+            ],
+          ),
+        ),
+      );
+    },
   );
+}
+
+// Hàm lấy tên hiển thị cho thiết bị
+String _getDeviceDisplayName(Device device) {
+  final typeName = DialogUtils.reverseDeviceTypeMap[device.type] ?? 'Thiết bị';
+  final name = device.name ?? 'Unknown';
+  
+  // Rút gọn tên cho các thiết bị dài
+  if (name.length > 12) {
+    return "$typeName\n${name.substring(0, 10)}...";
+  }
+  
+  return "$typeName\n$name";
+}
+
+// Hàm xác định kích thước font dựa trên kích thước card và loại thiết bị
+double _getFontSizeForDevice(double cardWidth, String deviceType) {
+  if (cardWidth < 120) return 10;
+  if (cardWidth < 140) return 12;
+  if (cardWidth < 160) return 14;
+  
+  // Các thiết bị có tên dài cần font nhỏ hơn
+  final longNameDevices = ["Temperature Humidity Sensor", "Gas Sensor"];
+  if (longNameDevices.contains(deviceType)) {
+    if (cardWidth < 180) return 10;
+    return 11;
+  }
+  
+  if (cardWidth < 180) return 11;
+  return 12;
+}
+
+// Hàm xác định số dòng tối đa dựa trên loại thiết bị
+int _getMaxLinesForDevice(String deviceType) {
+  switch (deviceType) {
+    case "Temperature Humidity Sensor":
+    case "Gas Sensor":
+      return 3;
+    default:
+      return 2;
+  }
+}
+
+// Widget hiển thị thông tin cụ thể theo loại thiết bị
+Widget _buildDeviceSpecificInfo(Device device, DeviceStatus status, bool isVeryNarrow, bool isSmallDevice) {
+  final textStyle = TextStyle(
+    color: Colors.white,
+    fontSize: isVeryNarrow ? 8 : (isSmallDevice ? 9 : 10),
+    fontWeight: FontWeight.w400,
+  );
+
+  switch (device.type) {
+    case "Temperature Humidity Sensor":
+      return Column(
+        children: [
+          Text(
+            "${status.temperature?.toStringAsFixed(1) ?? '--'}°C",
+            style: textStyle.copyWith(fontWeight: FontWeight.w600),
+          ),
+          Text(
+            "${status.humidity?.toStringAsFixed(0) ?? '--'}%",
+            style: textStyle,
+          ),
+        ],
+      );
+      
+    case "Gas Sensor":
+      return Text(
+        "${double.tryParse(status.mode)?.toStringAsFixed(0) ?? '--'} ppm",
+        style: textStyle.copyWith(fontWeight: FontWeight.w600),
+      );
+      
+    case "Fan":
+      return Text(
+        "${status.speed?.toStringAsFixed(0) ?? '0'}%",
+        style: textStyle.copyWith(fontWeight: FontWeight.w600),
+      );
+      
+    case "Light":
+      return Text(
+        status.status ? "Đang bật" : "Đã tắt",
+        style: textStyle.copyWith(
+          fontWeight: FontWeight.w600,
+          color: status.status ? Colors.lightGreenAccent : Colors.grey.shade300,
+        ),
+      );
+      
+    default:
+      return Text(
+        status.status ? "BẬT" : "TẮT",
+        style: textStyle.copyWith(
+          fontWeight: FontWeight.w600,
+          color: status.status ? Colors.lightGreenAccent : Colors.grey.shade300,
+        ),
+      );
+  }
+}
+
+// Widget điều khiển thiết bị theo loại
+Widget _buildDeviceControl(String homeId, String roomId, Device device, DeviceStatus status, bool isVeryNarrow, bool isSmallDevice) {
+  final controlSize = isVeryNarrow ? 40.0 : (isSmallDevice ? 46.0 : 50.0);
+
+  switch (device.type) {
+    case "Fan":
+      return SizedBox(
+        width: controlSize,
+        height: controlSize,
+        child: CircularProgressIndicator(
+          value: (status.speed ?? 0) / 100,
+          backgroundColor: Colors.white.withOpacity(0.3),
+          valueColor: AlwaysStoppedAnimation<Color>(
+            status.status ? Colors.lightGreenAccent : Colors.grey.shade300,
+          ),
+          strokeWidth: 3,
+        ),
+      );
+      
+    case "Temperature Humidity Sensor":
+    case "Gas Sensor":
+      // Cảm biến chỉ hiển thị trạng thái, không có điều khiển
+      return Container(
+        width: controlSize,
+        height: controlSize * 0.3,
+        decoration: BoxDecoration(
+          color: Colors.white.withOpacity(0.2),
+          borderRadius: BorderRadius.circular(10),
+        ),
+        child: Center(
+          child: Text(
+            "CẢM BIẾN",
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: isVeryNarrow ? 6 : (isSmallDevice ? 7 : 8),
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+      );
+      
+    default:
+      // Switch cho các thiết bị thông thường
+      return SizedBox(
+        width: controlSize,
+        child: FittedBox(
+          fit: BoxFit.contain,
+          child: Switch.adaptive(
+            value: status.status,
+            activeColor: const Color.fromARGB(255, 99, 207, 69),
+            inactiveThumbColor: const Color.fromARGB(255, 99, 207, 69),
+            onChanged: (val) {
+              deviceController.updateStatus(
+                homeId, 
+                roomId, 
+                device.id,
+                DeviceStatus(status: val)
+              );
+            },
+          ),
+        ),
+      );
+  }
 }
 
 }
@@ -1407,7 +1468,7 @@ Widget _buildSharedRoomCard(RoomModel room, String homeId) {
       ? Colors.white.withOpacity(0.8) 
       : Colors.grey.shade600;
 
-  void _navigateToRoomDetail(BuildContext context, List<Device> devices) {
+  void navigateToRoomDetail(BuildContext context, List<Device> devices) {
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -1452,7 +1513,7 @@ Future<void> handleLeaveRoom(BuildContext context, RoomModel room, String homeId
 
 
   // Hiển thị dialog (trả về Future để dễ await nếu cần)
-  Future<void> _showLeaveRoomConfirmation(BuildContext context, RoomModel room, String homeId) async {
+  Future<void> showLeaveRoomConfirmation(BuildContext context, RoomModel room, String homeId) async {
     await showDialog<void>(
       context: context,
       builder: (BuildContext dialogContext) {
@@ -1670,8 +1731,8 @@ Future<void> handleLeaveRoom(BuildContext context, RoomModel room, String homeId
                     context,
                     devices,
                     room,
-                    _navigateToRoomDetail,
-                    (context) => _showLeaveRoomConfirmation(context, room, homeId)
+                    navigateToRoomDetail,
+                    (context) => showLeaveRoomConfirmation(context, room, homeId)
                   );
                 },
               ),
@@ -1876,7 +1937,7 @@ Widget _buildDevicesSection(
 
 // ---------------- HomePageContent (KFDrawer container) ----------------
 class HomePageContent extends StatefulWidget {
-  const HomePageContent({Key? key}) : super(key: key);
+  const HomePageContent({super.key});
 
   @override
   State<HomePageContent> createState() => _HomePageContentState();

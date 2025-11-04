@@ -1,11 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
-import 'package:iot_smarthome/Config/Theme.dart';
 import 'package:iot_smarthome/Pages/OnBoarding/Widget/OnBoardingPage.dart';
 import 'package:lottie/lottie.dart';
 import 'package:iot_smarthome/Config/Colors.dart';
-import 'package:iot_smarthome/Config/Texts.dart';
-import 'package:iot_smarthome/Config/Images.dart';
 import 'package:iot_smarthome/Config/Texts.dart';
 class SlacePage extends StatefulWidget {
   const SlacePage({super.key});

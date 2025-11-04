@@ -10,6 +10,7 @@ import 'package:iot_smarthome/Models/HomeModel.dart';
 import 'package:iot_smarthome/Models/RoomModel.dart';
 import 'package:iot_smarthome/Pages/Home/Dialog.dart';
 import 'package:uuid/uuid.dart';
+import 'package:rxdart/rxdart.dart' as rxdart;
 
 class DeviceController extends GetxController {
   final firestore = FirebaseFirestore.instance;
@@ -24,33 +25,75 @@ class DeviceController extends GetxController {
 
   /// Stream Homes + Rooms realtime
   void streamHomes(String userId) {
-    firestore
-        .collection("Homes")
-        .where("ownerId", isEqualTo: userId)
-        .snapshots()
-        .listen((snap) async {
-      List<HomeModel> tempHomes = [];
-      for (var doc in snap.docs) {
-        final home = HomeModel.fromMap(doc.id, doc.data());
+  firestore
+      .collection("Homes")
+      .where("ownerId", isEqualTo: userId)
+      .snapshots()
+      .listen((snap) async {
+    List<HomeModel> tempHomes = [];
 
-        // Stream rooms cho từng home
-        final roomSnap = await firestore.collection("Homes/${home.id}/Rooms").get();
-        final rooms = roomSnap.docs
-            .map((r) => RoomModel.fromMap(r.id, r.data()))
+    for (var doc in snap.docs) {
+      final home = HomeModel.fromMap(doc.id, doc.data());
+
+      // 🔹 Lấy danh sách room
+      final roomSnap = await firestore.collection("Homes/${home.id}/Rooms").get();
+
+      // 🔹 Với mỗi room, lấy thêm devices
+      final rooms = await Future.wait(roomSnap.docs.map((r) async {
+        final room = RoomModel.fromMap(r.id, r.data());
+
+        final deviceSnap = await firestore
+            .collection("Homes/${home.id}/Rooms/${r.id}/devices")
+            .get();
+
+        final devices = deviceSnap.docs
+            .map((d) => Device.fromMap(d.id, d.data(), r.id))
             .toList();
 
-        tempHomes.add(HomeModel(
-            id: home.id, name: home.name, ownerId: home.ownerId, rooms: rooms,image: home.image));
-      }
-      homes.value = tempHomes;
-    });
-  }
+        // Trả về room có devices
+        return room.copyWithDevices(devices);
+      }));
+
+      tempHomes.add(HomeModel(
+        id: home.id,
+        members: home.members,
+        name: home.name,
+        ownerId: home.ownerId,
+        image: home.image,
+        location: home.location,
+        rooms: rooms,
+      ));
+    }
+
+    homes.value = tempHomes;
+  });
+}
+
+  Stream<int> getTotalDevicesCountStream(String homeId) {
+  return FirebaseFirestore.instance
+      .collection("Homes/$homeId/Rooms")
+      .snapshots()
+      .asyncMap((roomsSnap) async {
+    int totalDevices = 0;
+    
+    for (final roomDoc in roomsSnap.docs) {
+      final devicesCount = await FirebaseFirestore.instance
+          .collection("Homes/$homeId/Rooms/${roomDoc.id}/devices")
+          .count()
+          .get();
+      
+      totalDevices += devicesCount.count ?? 0;
+    }
+    
+    return totalDevices;
+  });
+}
 
   /// Thêm home mới
   Future<void> addHome(HomeModel home) async {
     final homeId = home.id.isEmpty ? uuid.v4() : home.id;
     await firestore.collection("Homes").doc(homeId).set(home.toMap()..['id'] = homeId);
-    await streamRooms(home.ownerId);
+    streamRooms(home.ownerId);
   }
 
     /// Cập nhật thông tin home (bao gồm cả image)
@@ -134,14 +177,26 @@ Stream<List<RoomModel>> streamSharedRooms() {
   });
 }
 
+ Stream<List<RoomModel>> streamRooms(String homeId) {
+    final roomsRef = firestore.collection('Homes').doc(homeId).collection('Rooms');
 
-  Stream<List<RoomModel>> streamRooms(String homeId) {
-  return firestore.collection("Homes/$homeId/Rooms").snapshots().map(
-    (snap) => snap.docs
-        .map((doc) => RoomModel.fromMap(doc.id, doc.data()))
-        .toList(),
-  );
-}
+    return roomsRef.snapshots().switchMap((roomSnap) {
+      final roomStreams = roomSnap.docs.map((roomDoc) {
+        final room = RoomModel.fromMap(roomDoc.id, roomDoc.data());
+
+        final devicesStream = roomDoc.reference
+            .collection('devices')
+            .snapshots()
+            .map((deviceSnap) => deviceSnap.docs
+                .map((d) => Device.fromMap(d.id, d.data(), roomDoc.id)) // ✅ thêm roomId
+                .toList());
+
+        return devicesStream.map((devices) => room.copyWithDevices(devices));
+      }).toList();
+
+      return rxdart.Rx.combineLatestList(roomStreams);
+    });
+  }
 
 
   Future<void> addRoom(String homeId, RoomModel room) async {

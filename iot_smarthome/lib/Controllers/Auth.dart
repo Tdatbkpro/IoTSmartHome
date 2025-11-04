@@ -1,9 +1,12 @@
+import 'package:device_info_plus/device_info_plus.dart';
 import 'package:firebase_auth/firebase_auth.dart' hide User;
 import 'package:firebase_core/firebase_core.dart';
  import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:iot_smarthome/Controllers/BiometricAuthController.dart';
+import 'package:iot_smarthome/Controllers/LoginDeviceController.dart';
 import '../Models/UserModel.dart';
 
 class AuthController extends GetxController {
@@ -12,9 +15,11 @@ class AuthController extends GetxController {
     final RxBool isLoading = false.obs;
     final RxBool successSignIn = true.obs;
     final biometricController = Get.put(BiometricAuthController());
+    static final DeviceInfoPlugin deviceInfoPlugin = DeviceInfoPlugin();
 
     String signInMessageError = '';
     String signUpMessageError = '';
+    
   Stream<User?> getUserByIdStream(String uid) {
   try {
     return db.collection("users").doc(uid).snapshots().map((snapshot) {
@@ -28,6 +33,21 @@ class AuthController extends GetxController {
     debugPrint("❌ Lỗi khi stream user theo id: $e");
     // Nếu có lỗi, trả về Stream rỗng để không crash
     return const Stream.empty();
+  }
+}
+Future<User?> getUserById(String uid) async {
+  try {
+    final docSnapshot = await db.collection("users").doc(uid).get();
+    if (docSnapshot.exists) {
+      final data = docSnapshot.data();
+      if (data != null) {
+        return User.fromJson(data); // hoặc User.fromJson(data)
+      }
+    }
+    return null; // Không tìm thấy user
+  } catch (e) {
+    print("Lỗi khi lấy user: $e");
+    return null;
   }
 }
 
@@ -115,6 +135,9 @@ Future<void> updateUserInfo(String? name, String? avatarFile) async {
           );
         }
         successSignIn.value = true;
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          Get.put(LoginDeviceController()).saveDeviceInfo();
+        });
         showSuccessSnackbar('🎉 Đăng nhập thành công!');
         Get.toNamed("/homePage");
       } on FirebaseAuthException catch (e) {
@@ -164,7 +187,7 @@ Future<void> updateUserInfo(String? name, String? avatarFile) async {
     Future<void> signOut() async {
       try {
         await auth.signOut();
-        Get.toNamed("/authPath");
+        Get.offAllNamed('/authPath');
       } catch (e) {
         Get.snackbar(
         'Lỗi đăng xuất',
@@ -299,7 +322,7 @@ Future<void> updateUserInfo(String? name, String? avatarFile) async {
     }
 
     void showSuccessSnackbar(String message) async {
-      await Get.snackbar(
+      Get.snackbar(
         'Thành công',
         message,
         backgroundColor: Colors.green.shade400,

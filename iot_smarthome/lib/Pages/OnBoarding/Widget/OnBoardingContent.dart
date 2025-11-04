@@ -1,6 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:get/get.dart';
-import 'package:iot_smarthome/Config/Texts.dart';
 
 class OnBoardingContent extends StatelessWidget {
   final Size size;
