@@ -9,7 +9,7 @@ import 'package:iot_smarthome/Models/UserModel.dart';
 import 'package:iot_smarthome/Pages/Settings/Widget/AboutApp.dart';
 import 'package:iot_smarthome/Pages/Profile/Widget/ChangeUserInfo.dart';
 import 'package:iot_smarthome/Pages/Settings/Widget/FeedBack.dart';
-import 'package:iot_smarthome/Pages/Home/Widget/LoginDeviceManager.dart';
+import 'package:iot_smarthome/Pages/Settings/Widget/LoginDeviceManager.dart';
 import 'package:iot_smarthome/Pages/Settings/Widget/SecurityPrivate.dart';
 import 'package:kf_drawer/kf_drawer.dart';
 

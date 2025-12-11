@@ -11,6 +11,7 @@ import 'package:iot_smarthome/Models/RoomModel.dart';
 import 'package:iot_smarthome/Pages/Home/Dialog.dart';
 import 'package:uuid/uuid.dart';
 import 'package:rxdart/rxdart.dart' as rxdart;
+import 'package:async/async.dart';
 
 class DeviceController extends GetxController {
   final firestore = FirebaseFirestore.instance;
@@ -22,52 +23,91 @@ class DeviceController extends GetxController {
   final uuid = const Uuid();
 
   RxList<HomeModel> homes = <HomeModel>[].obs;
+RxList<HomeModel> homeJoineds = <HomeModel>[].obs;
 
-  /// Stream Homes + Rooms realtime
-  void streamHomes(String userId) {
-  firestore
+/// Stream tất cả homes (cả owned và joined)
+void streamAllHomes(String userId) {
+  final ownedHomesStream = firestore
       .collection("Homes")
       .where("ownerId", isEqualTo: userId)
-      .snapshots()
-      .listen((snap) async {
-    List<HomeModel> tempHomes = [];
+      .snapshots();
 
-    for (var doc in snap.docs) {
-      final home = HomeModel.fromMap(doc.id, doc.data());
+  final allHomesStream = firestore
+      .collection("Homes")
+      .snapshots();
 
-      // 🔹 Lấy danh sách room
-      final roomSnap = await firestore.collection("Homes/${home.id}/Rooms").get();
+  // Merge 2 stream
+  final mergedStream = StreamGroup.merge([ownedHomesStream, allHomesStream]);
 
-      // 🔹 Với mỗi room, lấy thêm devices
-      final rooms = await Future.wait(roomSnap.docs.map((r) async {
-        final room = RoomModel.fromMap(r.id, r.data());
+  mergedStream.listen((snap) async {
+    List<HomeModel> tempOwnedHomes = [];
+    List<HomeModel> tempJoinedHomes = [];
 
-        final deviceSnap = await firestore
-            .collection("Homes/${home.id}/Rooms/${r.id}/devices")
-            .get();
+    // Lấy tất cả documents từ snapshot
+    final docs = snap.docs;
+    
+    for (var doc in docs) {
+      try {
+        final home = HomeModel.fromMap(doc.id, doc.data());
+        final members = home.members ?? [];
 
-        final devices = deviceSnap.docs
-            .map((d) => Device.fromMap(d.id, d.data(), r.id))
-            .toList();
+        // Lấy rooms và devices
+        final roomSnap = await firestore.collection("Homes/${home.id}/Rooms").get();
+        final rooms = await Future.wait(roomSnap.docs.map((r) async {
+          final room = RoomModel.fromMap(r.id, r.data());
+          final deviceSnap = await firestore
+              .collection("Homes/${home.id}/Rooms/${r.id}/devices")
+              .get();
+          final devices = deviceSnap.docs
+              .map((d) => Device.fromMap(d.id, d.data(), r.id))
+              .toList();
+          return room.copyWithDevices(devices);
+        }));
 
-        // Trả về room có devices
-        return room.copyWithDevices(devices);
-      }));
+        final homeWithRooms = HomeModel(
+          id: home.id,
+          members: home.members,
+          name: home.name,
+          ownerId: home.ownerId,
+          image: home.image,
+          location: home.location,
+          rooms: rooms,
+        );
 
-      tempHomes.add(HomeModel(
-        id: home.id,
-        members: home.members,
-        name: home.name,
-        ownerId: home.ownerId,
-        image: home.image,
-        location: home.location,
-        rooms: rooms,
-      ));
+        // Phân loại home
+        if (home.ownerId == userId) {
+          // Home owned
+          tempOwnedHomes.add(homeWithRooms);
+        } else {
+          // Home joined (kiểm tra membership)
+          final isMember = members.any((m) => m.userId == userId);
+          if (isMember) {
+            tempJoinedHomes.add(homeWithRooms);
+          }
+        }
+      } catch (e, st) {
+        print('⚠️ Lỗi khi xử lý home ${doc.id}: $e');
+        print(st);
+      }
     }
 
-    homes.value = tempHomes;
+    // Cập nhật RxList
+    homes.value = tempOwnedHomes;
+    homeJoineds.value = tempJoinedHomes;
   });
 }
+HomeRole getRoleOfHome(HomeModel home) {
+  final currentUser = FirebaseAuth.instance.currentUser;
+  if (home.ownerId == currentUser?.uid) {
+    return HomeRole.owner;
+  }
+  final members = home.members ?? [];
+  final member = members.firstWhere((m) => m.userId == currentUser?.uid);
+  return member.role;
+}
+
+/// Homes mà user là chủ sở hữu
+
 
   Stream<int> getTotalDevicesCountStream(String homeId) {
   return FirebaseFirestore.instance
@@ -94,19 +134,26 @@ class DeviceController extends GetxController {
     final homeId = home.id.isEmpty ? uuid.v4() : home.id;
     await firestore.collection("Homes").doc(homeId).set(home.toMap()..['id'] = homeId);
     streamRooms(home.ownerId);
+    streamAllHomes(home.ownerId);
   }
 
-    /// Cập nhật thông tin home (bao gồm cả image)
     Future<void> updateHome(HomeModel home) async {
       try {
-        await firestore.collection("Homes").doc(home.id).update(home.toMap());
-        
+        // Lấy dữ liệu map từ model
+        final data = home.toMap();
+
+        // Lọc bỏ những trường null (chỉ giữ trường có giá trị)
+        data.removeWhere((key, value) => value == null);
+
+        await firestore.collection("Homes").doc(home.id).update(data);
+
         // Sau khi update thì load lại danh sách homes
-        streamHomes(home.ownerId);
+        streamAllHomes(home.ownerId);
       } catch (e) {
         print("Error updating home: $e");
       }
     }
+
 
 
 
@@ -384,8 +431,49 @@ Stream<List<RoomModel>> streamSharedRooms() {
     return DeviceStatus(status: false);
   });
 }
+Future<DeviceStatus> getFutureDeviceStatus(
+    String homeId, 
+    String roomId, 
+    String deviceId
+  ) async {
+    try {
+      final snapshot = await realtime
+          .ref("Status")
+          .child(homeId)
+          .child(roomId)
+          .child(deviceId)
+          .get();
+      
+      if (snapshot.exists) {
+        final data = snapshot.value as Map<dynamic, dynamic>;
+        return DeviceStatus.fromMap(Map<String, dynamic>.from(data));
+      } else {
+        // Nếu chưa có dữ liệu, tạo deviceStatus mới
+        return DeviceStatus(
+          status: false,
+          temperature: 0,
+          humidity: 0,
+          speed: 0,
+          mode: '',
+          CO2: 0,
+          lastUpdate: DateTime.now(),
+          totalUsageHours: 0,
+        );
+      }
+    } catch (e) {
+      print('❌ Lỗi khi lấy device status: $e');
+      rethrow;
+    }
+  }
 
-
+  Future<Map<String,DeviceStatus>> getDeviceStatusMapForRoom(String homeId, String roomId, List<Device> devices) async {
+    final Map<String, DeviceStatus> deviceStatusMap = {};
+    for (Device d in devices) {
+      final deviceStatus = await getFutureDeviceStatus(homeId, roomId, d.id);
+      deviceStatusMap[d.id] = deviceStatus;
+    }
+    return deviceStatusMap;
+  }
   Future<void> updateStatus(
       String homeId, String roomId, String deviceId, DeviceStatus deviceStatus) async {
     await realtime.ref("Status/$homeId/$roomId/$deviceId").update(

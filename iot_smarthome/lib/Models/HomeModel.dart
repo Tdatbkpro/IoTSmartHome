@@ -141,7 +141,7 @@ static List<HomeMember> _parseMembers(dynamic membersData) {
 
 class HomeMember {
   final String userId;
-  final HomeRole role;
+   HomeRole role;
   final DateTime joinedAt;
   final DateTime? invitedAt;
   final String? invitedBy; // userId người mời
@@ -173,7 +173,9 @@ class HomeMember {
       isActive: map['isActive'] ?? true,
     );
   }
-
+  factory HomeMember.empty() {
+    return HomeMember.empty();
+  }
   Map<String, dynamic> toMap() {
     return {
       'userId': userId,
@@ -214,6 +216,7 @@ enum HomeRole {
   owner,   // Chủ nhà - toàn quyền
   admin,   // Quản trị - có thể thêm/xóa thành viên, quản lý thiết bị
   member,  // Thành viên - chỉ có thể điều khiển thiết bị
+  guess,
 }
 
 // Extension để hiển thị tên role tiếng Việt
@@ -226,6 +229,8 @@ extension HomeRoleExtension on HomeRole {
         return 'Quản trị';
       case HomeRole.member:
         return 'Thành viên';
+      case HomeRole.guess:
+        return "Khách";
     }
   }
 
@@ -237,6 +242,8 @@ extension HomeRoleExtension on HomeRole {
         return 'Có thể quản lý thành viên và thiết bị';
       case HomeRole.member:
         return 'Chỉ có thể điều khiển thiết bị';
+        case HomeRole.guess:
+        return 'Chỉ có xem thông tin nhà';
     }
   }
 }

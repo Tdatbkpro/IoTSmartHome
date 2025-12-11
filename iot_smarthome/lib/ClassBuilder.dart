@@ -13,11 +13,6 @@ void register<T>(Constructor<T> constructor) {
 class ClassBuilder {
   static void registerClasses() {
     register<HomePageContent>(() => HomePageContent());
-    // register<Profile>(() => Profile());
-    // register<Notifications>(() => Notifications());
-    // register<Stats>(() => Stats());
-    // register<Schedules>(() => Schedules());
-    // register<Settings>(() => Settings());
   }
 
   static dynamic fromString(String type) {

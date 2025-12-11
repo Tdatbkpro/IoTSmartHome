@@ -267,6 +267,7 @@ class AddHomePage {
                     location: locationCtrl.text.trim().isEmpty ? null : locationCtrl.text.trim(),
                     latitude: selectedLatitude,
                     longitude: selectedLongitude,
+                    members: homeModel!.members,
                     rooms: homeModel!.rooms, // Giữ nguyên danh sách rooms
                   );
                   

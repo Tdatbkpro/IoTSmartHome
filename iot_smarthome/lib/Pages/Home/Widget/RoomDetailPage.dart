@@ -236,6 +236,7 @@ class _RoomDetailPageState extends State<RoomDetailPage> {
                 if (value == null) throw MyCustomException("Không tìm thấy giá trị giảm tốc độ");
                 statusDevice.speed -= value.toDouble();
                 break;
+              
             }
           }
 
@@ -542,25 +543,24 @@ class _DeviceCardState extends State<_DeviceCard> with AutomaticKeepAliveClientM
 
   Widget _buildCardContent(Device device, DeviceStatus data) {
     final child = switch (device.type) {
-      "Temperature Humidity Sensor" => _buildTempHumidityCard(data),
+      "Temperature Humidity Sensor" => _buildTempHumidityCard(device.id, data),
       "Gas Sensor" => _buildGaugeCard(
         title: "Khí gas",
         value: double.tryParse(data.mode) ?? 0,
         unit: "ppm",
         color: Colors.redAccent,
         min: 0,
-        max: 1000,
+        max: 100,
       ),
       "Fan" => _buildFanCard(
-        data.speed,
         device.id,
-        data.status,
+        data
       ),
       _ => _buildSwitchCard(
-        device.name ?? "Unknown",
-        data.status,
+        device.name!,
         getDeviceIcon(device.type ?? "", data.status),
         device.id,
+        data
       ),
     };
 
@@ -665,46 +665,71 @@ class _DeviceCardState extends State<_DeviceCard> with AutomaticKeepAliveClientM
 
   // Các hàm _buildTempHumidityCard, _buildGaugeCard, _buildSwitchCard, _buildFanCard 
   // giữ nguyên như code gốc của bạn, chỉ cần copy vào đây
-  Widget _buildTempHumidityCard(DeviceStatus data) {
-    return Container(
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(20),
-        boxShadow: const [
-          BoxShadow(
-            color: Colors.black12,
-            blurRadius: 8,
-            offset: Offset(2, 2),
+  Widget _buildTempHumidityCard(String deviceId, DeviceStatus data) {
+  ValueNotifier<bool> switchValue = ValueNotifier(data.status);
+  return Container(
+    decoration: BoxDecoration(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(20),
+      boxShadow: const [
+        BoxShadow(
+          color: Colors.black12,
+          blurRadius: 8,
+          offset: Offset(2, 2),
+        ),
+      ],
+    ),
+    padding: const EdgeInsets.all(10),
+    child: Column(
+      mainAxisSize: MainAxisSize.min, // Quan trọng: giữ kích thước tối thiểu
+      children: [
+        Expanded( // Thêm Expanded ở đây
+          child: Row(
+            children: [
+              Expanded(
+                child: _buildGaugeCard(
+                  title: "Nhiệt độ",
+                  value: (data.temperature ?? 0).toDouble(),
+                  unit: "°C",
+                  color: Colors.deepOrangeAccent,
+                  min: 0,
+                  max: 60,
+                ),
+              ),
+              Expanded(
+                child: _buildGaugeCard(
+                  title: "Độ ẩm",
+                  value: (data.humidity ?? 0).toDouble(),
+                  unit: "%",
+                  color: Colors.blueAccent,
+                  min: 0,
+                  max: 100,
+                ),
+              ),
+            ],
           ),
-        ],
-      ),
-      padding: const EdgeInsets.all(10),
-      child: Row(
-        children: [
-          Expanded(
-            child: _buildGaugeCard(
-              title: "Nhiệt độ",
-              value: (data.temperature ?? 0).toDouble(),
-              unit: "°C",
-              color: Colors.deepOrangeAccent,
-              min: 0,
-              max: 100,
-            ),
+        ),
+        SizedBox(height: 8),
+        ValueListenableBuilder<bool>(
+          valueListenable: switchValue,
+          builder: (_, val, __) => Switch(
+            value: val,
+            activeThumbColor: Colors.green,
+            onChanged: (v) {
+              switchValue.value = v;
+              widget.deviceController.updateStatus(
+                widget.homeId,
+                widget.roomId,
+                deviceId,
+                data.updateDeviceStatus(v)
+              );
+            },
           ),
-          Expanded(
-            child: _buildGaugeCard(
-              title: "Độ ẩm",
-              value: (data.humidity ?? 0).toDouble(),
-              unit: "%",
-              color: Colors.blueAccent,
-              min: 0,
-              max: 100,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+        ),
+      ],
+    ),
+  );
+}
 
   Widget _buildGaugeCard({
     required String title,
@@ -728,6 +753,7 @@ class _DeviceCardState extends State<_DeviceCard> with AutomaticKeepAliveClientM
         ),
         padding: const EdgeInsets.all(10),
         child: Column(
+          mainAxisSize: MainAxisSize.min,
           children: [
             Text(title,
                 style: const TextStyle(
@@ -735,7 +761,7 @@ class _DeviceCardState extends State<_DeviceCard> with AutomaticKeepAliveClientM
                   fontSize: 14,
                   color: Colors.black87,
                 )),
-            Expanded(
+            Flexible(
               child: SfRadialGauge(
                 axes: [
                   RadialAxis(
@@ -777,8 +803,9 @@ class _DeviceCardState extends State<_DeviceCard> with AutomaticKeepAliveClientM
   }
 
   Widget _buildSwitchCard(
-      String name, bool initial, String? iconPath, String deviceId) {
-    ValueNotifier<bool> switchValue = ValueNotifier(initial);
+    String name,
+ String? iconPath, String deviceId, DeviceStatus deviceStatus) {
+    ValueNotifier<bool> switchValue = ValueNotifier(deviceStatus.status);
 
     return Card(
       elevation: 10,
@@ -819,7 +846,7 @@ class _DeviceCardState extends State<_DeviceCard> with AutomaticKeepAliveClientM
                     widget.homeId,
                     widget.roomId,
                     deviceId,
-                    DeviceStatus(status: switchValue.value ? true : false)
+                    deviceStatus.updateDeviceStatus(v)
                   );
                 },
               ),
@@ -830,8 +857,8 @@ class _DeviceCardState extends State<_DeviceCard> with AutomaticKeepAliveClientM
     );
   }
 
-  Widget _buildFanCard(double speed, String deviceId, bool isOn) {
-    ValueNotifier<bool> switchValue = ValueNotifier(isOn);
+  Widget _buildFanCard(String deviceId, DeviceStatus deviceStatus){
+    ValueNotifier<bool> switchValue = ValueNotifier(deviceStatus.status);
     return Card(
       elevation: 10,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
@@ -848,7 +875,7 @@ class _DeviceCardState extends State<_DeviceCard> with AutomaticKeepAliveClientM
         child: Column(
           children: [
             const Text(
-              "Quạt",
+              "Quạt ",
               style:
                   TextStyle(fontWeight: FontWeight.bold, color: Colors.black87),
             ),
@@ -864,14 +891,18 @@ class _DeviceCardState extends State<_DeviceCard> with AutomaticKeepAliveClientM
                 ),
                 min: 0,
                 max: 100,
-                initialValue: speed.toDouble(),
-                onChangeEnd: isOn
+                initialValue: deviceStatus.speed.toDouble(),
+                onChangeEnd: deviceStatus.status
                     ? (val) {
                         widget.deviceController.updateStatus(
                           widget.homeId,
                           widget.roomId,
                           deviceId,
-                          DeviceStatus(status: isOn, speed: val),
+                          deviceStatus.updateDeviceStatus(deviceStatus.status,otherData: Map.from(
+                            {
+                              "speed":val
+                            }
+                          )),
                         );
                       }
                     : null,
@@ -888,12 +919,12 @@ class _DeviceCardState extends State<_DeviceCard> with AutomaticKeepAliveClientM
                     widget.homeId,
                     widget.roomId,
                     deviceId,
-                    DeviceStatus(status: switchValue.value ? true : false)
+                    deviceStatus.updateDeviceStatus(v)
                   );
                 },
               ),
             ),
-            if (!isOn)
+            if (!deviceStatus.status)
               const Text(
                 "Quạt đang tắt",
                 style: TextStyle(color: Colors.redAccent),

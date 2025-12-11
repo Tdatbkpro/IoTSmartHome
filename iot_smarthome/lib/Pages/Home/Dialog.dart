@@ -1,3 +1,5 @@
+
+
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
@@ -13,341 +15,618 @@ class DialogUtils {
   static final  deviceController = Get.put(DeviceController()); 
   static final auth = FirebaseAuth.instance;
 
+static void showErrorDialog(BuildContext context, String message) {
+  showDialog(
+    context: context,
+    barrierDismissible: false,
+    builder: (context) {
+      return Dialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.red.withOpacity(0.1),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.error_outline,
+                  color: Colors.red,
+                  size: 40,
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              const Text(
+                'Lỗi',
+                style: TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+
+              const SizedBox(height: 12),
+
+              Text(
+                message,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 16,
+                ),
+              ),
+
+              const SizedBox(height: 24),
+
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () => Navigator.pop(context),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.red,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    padding: const EdgeInsets.symmetric(
+                      vertical: 14,
+                    ),
+                  ),
+                  child: const Text(
+                    'Đóng',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      );
+    },
+  );
+}
+
 static void showAddDeviceDialog(
-    BuildContext context, String homeId, String roomId) {
-  final nameCtrl = TextEditingController();
-  String selectedType = "Đèn";
+    BuildContext context, String homeId, String roomId ,{
+        bool editDevice = false,
+        Device? device,
+
+    }) {
+  final nameCtrl = TextEditingController(text: device?.name ?? '');
+  final powerCtrl = TextEditingController(
+    text: device?.power != null ? device!.power.toString() : ''
+  );
+  String selectedType =
+      device != null ? deviceTypeMap[device.type] ?? "Đèn" : "Đèn";
   final formKey = GlobalKey<FormState>();
 
-  // Map ánh xạ tiếng Việt -> tiếng Anh
-  
-
   final deviceTypes = deviceTypeMap.keys.toList();
-
   showDialog(
     context: context,
     builder: (_) => Dialog(
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(20),
       ),
-      child: Container(
-        padding: const EdgeInsets.all(24),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(20),
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Header
-            Row(
-              children: [
-                Container(
-                  width: 40,
-                  height: 40,
-                  decoration: BoxDecoration(
-                    color: Colors.deepPurple.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: const Icon(
-                    Icons.devices_rounded,
-                    color: Colors.deepPurple,
-                    size: 20,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                const Expanded(
-                  child: Text(
-                    "Thêm thiết bị mới",
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.black87,
-                    ),
-                  ),
-                ),
-              ],
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final bool isSmallScreen = constraints.maxWidth < 400;
+          final double horizontalPadding = isSmallScreen ? 16 : 24;
+          final double verticalPadding = isSmallScreen ? 20 : 24;
+          final double iconSize = isSmallScreen ? 18 : 20;
+          final double fontSize = isSmallScreen ? 14 : 16;
+          final double buttonFontSize = isSmallScreen ? 14 : 16;
+
+          return SingleChildScrollView(
+            padding: EdgeInsets.only(
+              bottom: MediaQuery.of(context).viewInsets.bottom + 16,
             ),
-
-            const SizedBox(height: 24),
-
-            // Nút quét QR code
-            Container(
+            child: Container(
               width: double.infinity,
+              constraints: BoxConstraints(
+                maxWidth: isSmallScreen ? 350 : 450,
+              ),
+              padding: EdgeInsets.symmetric(
+                horizontal: horizontalPadding,
+                vertical: verticalPadding,
+              ),
               decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  colors: [Colors.green[50]!, Colors.green[100]!],
-                  begin: Alignment.centerLeft,
-                  end: Alignment.centerRight,
-                ),
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: Colors.green.withOpacity(0.3)),
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(20),
               ),
-              child: TextButton.icon(
-                onPressed: () {
-                  Navigator.pop(context);
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) =>
-                          ScanQRCodePage(homeId: homeId, roomId: roomId),
-                    ),
-                  );
-                },
-                style: TextButton.styleFrom(
-                  foregroundColor: Colors.green[800],
-                  padding:
-                      const EdgeInsets.symmetric(vertical: 16, horizontal: 16),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                ),
-                icon: const Icon(Icons.qr_code_scanner_rounded, size: 24),
-                label: const Text(
-                  "Quét QR Thiết Bị",
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-            ),
-
-            const SizedBox(height: 20),
-
-            // Divider với text
-            Row(
-              children: [
-                Expanded(
-                  child: Divider(
-                    color: Colors.grey[300],
-                    thickness: 1,
-                  ),
-                ),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 12),
-                  child: Text(
-                    "hoặc",
-                    style: TextStyle(
-                      color: Colors.grey[600],
-                      fontSize: 14,
-                    ),
-                  ),
-                ),
-                Expanded(
-                  child: Divider(
-                    color: Colors.grey[300],
-                    thickness: 1,
-                  ),
-                ),
-              ],
-            ),
-
-            const SizedBox(height: 20),
-
-            // Form nhập thủ công
-            Form(
-              key: formKey,
               child: Column(
                 mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  TextFormField(
-                    controller: nameCtrl,
-                    decoration: InputDecoration(
-                      labelText: "Tên thiết bị",
-                      hintText: "Nhập tên thiết bị...",
-                      prefixIcon: Container(
-                        margin: const EdgeInsets.only(right: 12),
-                        child: const Icon(Icons.edit_rounded, color: Colors.grey),
+                  // Header - Responsive
+                  Row(
+                    children: [
+                      Container(
+                        width: isSmallScreen ? 36 : 40,
+                        height: isSmallScreen ? 36 : 40,
+                        decoration: BoxDecoration(
+                          color: Colors.deepPurple.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Icon(
+                          Icons.devices_rounded,
+                          color: Colors.deepPurple,
+                          size: iconSize,
+                        ),
                       ),
-                      prefixIconConstraints: const BoxConstraints(minWidth: 40),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(color: Colors.grey[400]!),
+                      SizedBox(width: isSmallScreen ? 8 : 12),
+                      Expanded(
+                        child: Text(
+                          editDevice ? "Chỉnh sửa thiết bị" : "Thêm thiết bị mới",
+                          style: TextStyle(
+                            fontSize: isSmallScreen ? 16 : 18,
+                            fontWeight: FontWeight.bold,
+                            color: Colors.black87,
+                          ),
+                        ),
                       ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(color: Colors.grey[400]!),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide:
-                            const BorderSide(color: Colors.deepPurple, width: 2),
-                      ),
-                      filled: true,
-                      fillColor: Colors.grey[50],
-                    ),
-                    style: const TextStyle(fontSize: 16),
-                    validator: (value) {
-                      if (value == null || value.trim().isEmpty) {
-                        return "Vui lòng nhập tên thiết bị";
-                      }
-                      return null;
-                    },
+                    ],
                   ),
 
-                  const SizedBox(height: 16),
+                  SizedBox(height: isSmallScreen ? 20 : 24),
 
-                  DropdownButtonFormField<String>(
-                    initialValue: selectedType,
-                    isExpanded: true,
-                    decoration: InputDecoration(
-                      labelText: "Loại thiết bị",
-                      prefixIcon: Container(
-                        margin: const EdgeInsets.only(right: 12),
-                        child: const Icon(Icons.category_rounded,
-                            color: Colors.grey),
+                  // Nút quét QR code - Responsive
+                  Container(
+                    width: double.infinity,
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        colors: [Colors.green[50]!, Colors.green[100]!],
+                        begin: Alignment.centerLeft,
+                        end: Alignment.centerRight,
                       ),
-                      prefixIconConstraints: const BoxConstraints(minWidth: 40),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(color: Colors.grey[400]!),
-                      ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide: BorderSide(color: Colors.grey[400]!),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        borderSide:
-                            const BorderSide(color: Colors.deepPurple, width: 2),
-                      ),
-                      filled: true,
-                      fillColor: Colors.grey[50],
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: Colors.green.withOpacity(0.3)),
                     ),
-                    dropdownColor: Colors.white,
-                    icon: const Icon(Icons.arrow_drop_down_rounded,
-                        color: Colors.grey),
-                    style: const TextStyle(fontSize: 16, color: Colors.black87),
-                    items: deviceTypes
-                        .map((type) => DropdownMenuItem(
-                              value: type,
-                              child: Padding(
-                                padding:
-                                    const EdgeInsets.symmetric(vertical: 4),
-                                child: Row(
-                                  children: [
-                                    Container(
-                                      width: 32,
-                                      height: 32,
-                                      decoration: BoxDecoration(
-                                        color: Colors.deepPurple.withOpacity(0.1),
-                                        borderRadius: BorderRadius.circular(8),
-                                      ),
-                                      child: Icon(
-                                        getDeviceIcon(type),
-                                        size: 18,
-                                        color: Colors.deepPurple,
+                    child: TextButton.icon(
+                      onPressed: () {
+                        Navigator.pop(context);
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) =>
+                                ScanQRCodePage(homeId: homeId, roomId: roomId),
+                          ),
+                        );
+                      },
+                      style: TextButton.styleFrom(
+                        foregroundColor: Colors.green[800],
+                        padding: EdgeInsets.symmetric(
+                          vertical: isSmallScreen ? 14 : 16,
+                          horizontal: isSmallScreen ? 12 : 16,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                      icon: Icon(Icons.qr_code_scanner_rounded, 
+                          size: isSmallScreen ? 20 : 24),
+                      label: Text(
+                        "Quét QR Thiết Bị",
+                        style: TextStyle(
+                          fontSize: fontSize,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ),
+
+                  SizedBox(height: isSmallScreen ? 16 : 20),
+
+                  // Divider với text
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Divider(
+                          color: Colors.grey[300],
+                          thickness: 1,
+                        ),
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        child: Text(
+                          "hoặc",
+                          style: TextStyle(
+                            color: Colors.grey[600],
+                            fontSize: isSmallScreen ? 12 : 14,
+                          ),
+                        ),
+                      ),
+                      Expanded(
+                        child: Divider(
+                          color: Colors.grey[300],
+                          thickness: 1,
+                        ),
+                      ),
+                    ],
+                  ),
+
+                  SizedBox(height: isSmallScreen ? 16 : 20),
+
+                  // Form nhập thủ công
+                  Form(
+                    key: formKey,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        TextFormField(
+                          controller: nameCtrl,
+                          decoration: InputDecoration(
+                            labelText: "Tên thiết bị",
+                            hintText: "Nhập tên thiết bị...",
+                            prefixIcon: Container(
+                              margin: const EdgeInsets.only(right: 12),
+                              child: Icon(Icons.edit_rounded, 
+                                  color: Colors.grey, size: iconSize),
+                            ),
+                            prefixIconConstraints: 
+                                const BoxConstraints(minWidth: 40),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide(color: Colors.grey[400]!),
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide(color: Colors.grey[400]!),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: const BorderSide(
+                                  color: Colors.deepPurple, width: 2),
+                            ),
+                            filled: true,
+                            fillColor: Colors.grey[50],
+                            contentPadding: EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: isSmallScreen ? 12 : 16,
+                            ),
+                          ),
+                          style: TextStyle(fontSize: fontSize),
+                          validator: (value) {
+                            if (value == null || value.trim().isEmpty) {
+                              return "Vui lòng nhập tên thiết bị";
+                            }
+                            return null;
+                          },
+                        ),
+
+                        SizedBox(height: isSmallScreen ? 12 : 16),
+
+                        // Thêm trường nhập công suất
+                        TextFormField(
+                          controller: powerCtrl,
+                          keyboardType: TextInputType.number,
+                          decoration: InputDecoration(
+                            labelText: "Công suất tiêu thụ (W)",
+                            hintText: "Nhập công suất...",
+                            prefixIcon: Container(
+                              margin: const EdgeInsets.only(right: 12),
+                              child: Icon(Icons.bolt_rounded, 
+                                  color: Colors.orange, size: iconSize),
+                            ),
+                            prefixIconConstraints: 
+                                const BoxConstraints(minWidth: 40),
+                            suffixText: "W",
+                            suffixStyle: TextStyle(
+                              color: Colors.grey[600],
+                              fontSize: fontSize,
+                            ),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide(color: Colors.grey[400]!),
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide(color: Colors.grey[400]!),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: const BorderSide(
+                                  color: Colors.deepPurple, width: 2),
+                            ),
+                            filled: true,
+                            fillColor: Colors.grey[50],
+                            contentPadding: EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: isSmallScreen ? 12 : 16,
+                            ),
+                          ),
+                          style: TextStyle(fontSize: fontSize),
+                          validator: (value) {
+                            if (value == null || value.trim().isEmpty) {
+                              return "Vui lòng nhập công suất";
+                            }
+                            final power = double.tryParse(value);
+                            if (power == null || power <= 0) {
+                              return "Công suất phải là số dương";
+                            }
+                            return null;
+                          },
+                        ),
+
+                        SizedBox(height: isSmallScreen ? 12 : 16),
+
+                        DropdownButtonFormField<String>(
+                          value: selectedType,
+                          isExpanded: true,
+                          decoration: InputDecoration(
+                            labelText: "Loại thiết bị",
+                            prefixIcon: Container(
+                              margin: const EdgeInsets.only(right: 12),
+                              child: Icon(Icons.category_rounded,
+                                  color: Colors.grey, size: iconSize),
+                            ),
+                            prefixIconConstraints: 
+                                const BoxConstraints(minWidth: 40),
+                            border: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide(color: Colors.grey[400]!),
+                            ),
+                            enabledBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: BorderSide(color: Colors.grey[400]!),
+                            ),
+                            focusedBorder: OutlineInputBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              borderSide: const BorderSide(
+                                  color: Colors.deepPurple, width: 2),
+                            ),
+                            filled: true,
+                            fillColor: Colors.grey[50],
+                            contentPadding: EdgeInsets.symmetric(
+                              horizontal: 16,
+                              vertical: isSmallScreen ? 12 : 16,
+                            ),
+                          ),
+                          dropdownColor: Colors.white,
+                          icon: Icon(Icons.arrow_drop_down_rounded,
+                              color: Colors.grey, size: iconSize + 4),
+                          style: TextStyle(fontSize: fontSize, 
+                              color: Colors.black87),
+                          items: deviceTypes
+                              .map((type) => DropdownMenuItem(
+                                    value: type,
+                                    child: Padding(
+                                      padding: EdgeInsets.symmetric(
+                                          vertical: isSmallScreen ? 2 : 4),
+                                      child: Row(
+                                        children: [
+                                          Container(
+                                            width: isSmallScreen ? 28 : 32,
+                                            height: isSmallScreen ? 28 : 32,
+                                            decoration: BoxDecoration(
+                                              color: Colors.deepPurple
+                                                  .withOpacity(0.1),
+                                              borderRadius: 
+                                                  BorderRadius.circular(8),
+                                            ),
+                                            child: Icon(
+                                              getDeviceIcon(type),
+                                              size: isSmallScreen ? 16 : 18,
+                                              color: Colors.deepPurple,
+                                            ),
+                                          ),
+                                          SizedBox(width: isSmallScreen ? 8 : 12),
+                                          Flexible(
+                                            child: Text(
+                                              type,
+                                              style: TextStyle(
+                                                  fontSize: isSmallScreen 
+                                                      ? 13 : 14),
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                          ),
+                                        ],
                                       ),
                                     ),
-                                    const SizedBox(width: 12),
-                                    Flexible(
-                                      child: Text(
-                                        type,
-                                        style: const TextStyle(fontSize: 14),
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                    ),
-                                  ],
-                                ),
+                                  ))
+                              .toList(),
+                          onChanged: (val) {
+                            if (val != null) selectedType = val;
+                          },
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  SizedBox(height: isSmallScreen ? 20 : 24),
+
+                  // Nút hành động - Responsive layout
+                  if (isSmallScreen) 
+                    Column(
+                      children: [
+                        ElevatedButton(
+                            onPressed: () {
+                              if (editDevice) {
+                                _updateDevice(context, formKey, nameCtrl, powerCtrl,
+                                    selectedType, homeId, roomId, device!);
+                              } else {
+                                _addDevice(context, formKey, nameCtrl, powerCtrl,
+                                    selectedType, homeId, roomId);
+                              }
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.deepPurple,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
                               ),
-                            ))
-                        .toList(),
-                    onChanged: (val) {
-                      if (val != null) selectedType = val;
-                    },
-                  ),
+                              elevation: 2,
+                              shadowColor: Colors.deepPurple.withOpacity(0.3),
+                            ),
+                            child: Text(
+                              editDevice ? "Cập nhật thiết bị" : "Thêm thiết bị",
+                              style: TextStyle(
+                                fontSize: buttonFontSize,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+
+                        SizedBox(height: 8),
+                        OutlinedButton(
+                          onPressed: () => Navigator.pop(context),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: Colors.grey[700],
+                            backgroundColor: Colors.transparent,
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                              side: BorderSide(color: Colors.grey[400]!),
+                            ),
+                            minimumSize: const Size(double.infinity, 50),
+                          ),
+                          child: Text(
+                            "Hủy",
+                            style: TextStyle(
+                              fontSize: buttonFontSize,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ],
+                    )
+                  else 
+                    Row(
+                      children: [
+                        Expanded(
+                          child: OutlinedButton(
+                            onPressed: () => Navigator.pop(context),
+                            style: OutlinedButton.styleFrom(
+                              foregroundColor: Colors.grey[700],
+                              backgroundColor: Colors.transparent,
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                                side: BorderSide(color: Colors.grey[400]!),
+                              ),
+                            ),
+                            child: Text(
+                              "Hủy",
+                              style: TextStyle(
+                                fontSize: buttonFontSize,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ),
+                        SizedBox(width: 12),
+                        Expanded(
+                          child: ElevatedButton(
+                            onPressed: () {
+                              _addDevice(context, formKey, nameCtrl, powerCtrl, 
+                                  selectedType, homeId, roomId);
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: Colors.deepPurple,
+                              foregroundColor: Colors.white,
+                              padding: const EdgeInsets.symmetric(vertical: 14),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              elevation: 2,
+                              shadowColor: Colors.deepPurple.withOpacity(0.3),
+                            ),
+                            child: Text(
+                              "Thêm thiết bị",
+                              style: TextStyle(
+                                fontSize: buttonFontSize,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                 ],
               ),
             ),
-
-            const SizedBox(height: 24),
-
-            // Nút hành động
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: () => Navigator.pop(context),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: Colors.grey[700],
-                      backgroundColor: Colors.transparent,
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                        side: BorderSide(color: Colors.grey[400]!),
-                      ),
-                    ),
-                    child: const Text(
-                      "Hủy",
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: ElevatedButton(
-                    onPressed: () {
-                      if (formKey.currentState!.validate()) {
-                        final device = Device(
-                          id: const Uuid().v4(),
-                          name: nameCtrl.text.trim(),
-                          // 🔥 Dùng mapping để lưu tiếng Anh
-                          type: deviceTypeMap[selectedType]!,
-                          roomId: roomId,
-                        );
-                        deviceController.addDevice(homeId, roomId, device);
-                        Navigator.pop(context);
-
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content:
-                                Text('Đã thêm thiết bị "${device.name}"'),
-                            backgroundColor: Colors.green,
-                            behavior: SnackBarBehavior.floating,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(8),
-                            ),
-                          ),
-                        );
-                      }
-                    },
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: Colors.deepPurple,
-                      foregroundColor: Colors.white,
-                      padding: const EdgeInsets.symmetric(vertical: 14),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                      elevation: 2,
-                      shadowColor: Colors.deepPurple.withOpacity(0.3),
-                    ),
-                    child: const Text(
-                      "Thêm thiết bị",
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
+          );
+        },
       ),
     ),
   );
 }
 
-static Map<String, String> reverseDeviceTypeMap = {
-  for (var e in deviceTypeMap.entries) e.value: e.key
-};
+// Hàm xử lý thêm thiết bị
+static void _updateDevice(
+  BuildContext context,
+  GlobalKey<FormState> formKey,
+  TextEditingController nameCtrl,
+  TextEditingController powerCtrl,
+  String selectedType,
+  String homeId,
+  String roomId,
+  Device oldDevice,
+) {
+  if (formKey.currentState!.validate()) {
+    final updatedDevice = oldDevice.copyWith(
+      name: nameCtrl.text.trim(),
+      power: double.parse(powerCtrl.text),
+      type: deviceTypeMap[selectedType]!,
+    );
 
+    deviceController.updateDevice(homeId, roomId, updatedDevice);
+    Navigator.pop(context);
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Đã cập nhật thiết bị "${updatedDevice.name}"'),
+        backgroundColor: Colors.blue,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(8),
+        ),
+      ),
+    );
+  }
+}
+
+static void _addDevice(
+  BuildContext context,
+  GlobalKey<FormState> formKey,
+  TextEditingController nameCtrl,
+  TextEditingController powerCtrl,
+  String selectedType,
+  String homeId,
+  String roomId,
+) {
+  if (formKey.currentState!.validate()) {
+    final device = Device(
+      id: const Uuid().v4(),
+      name: nameCtrl.text.trim(),
+      type: deviceTypeMap[selectedType]!,
+      roomId: roomId,
+      power: double.parse(powerCtrl.text),
+    );
+    deviceController.addDevice(homeId, roomId, device);
+    Navigator.pop(context);
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Đã thêm thiết bị "${device.name}"'),
+        backgroundColor: Colors.green,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(8),
+        ),
+      ),
+    );
+  }
+}
 
 static Map<String, String> deviceTypeMap = {
   "Đèn": "Light",
@@ -359,6 +638,10 @@ static Map<String, String> deviceTypeMap = {
   "Loa": "Speaker",
   "Cảm biến khí gas": "Gas Sensor",
   "Cảm biến nhiệt độ và độ ẩm": "Temperature Humidity Sensor",
+};
+
+static Map<String, String> reverseDeviceTypeMap = {
+  for (var e in deviceTypeMap.entries) e.value: e.key
 };
 
 // Helper function để lấy icon cho thiết bị

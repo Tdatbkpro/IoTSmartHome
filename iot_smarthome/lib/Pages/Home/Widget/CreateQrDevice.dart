@@ -5,6 +5,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:image_gallery_saver_plus/image_gallery_saver_plus.dart';
+import 'package:iot_smarthome/Pages/Home/Dialog.dart';
 import 'package:kf_drawer/kf_drawer.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
@@ -133,7 +134,7 @@ class _CreateDeviceQRPageState extends State<CreateDeviceQRPage> {
     final deviceData = {
       "deviceId": const Uuid().v4(),
       "name": _nameController.text,
-      "type": _selectedType,
+      "type": DialogUtils.deviceTypeMap[_selectedType],
       "createdAt": DateTime.now().millisecondsSinceEpoch,
     };
 

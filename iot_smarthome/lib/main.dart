@@ -6,6 +6,7 @@ import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:get/get.dart';
 import 'package:iot_smarthome/Config/PagePath.dart';
 import 'package:iot_smarthome/Controllers/Auth.dart';
@@ -92,6 +93,11 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
         color: Colors.green,
         autoDismissible: true,
       ),
+      NotificationActionButton(
+        key: 'delete', 
+        label: 'Xóa', 
+        color: Colors.grey, 
+        autoDismissible: true)
     ];
   } else if (notificationType == 'deviceAlert') {
     // 🎯 ACTION CHO DEVICE ALERT
@@ -144,9 +150,9 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
     ),
     actionButtons: actionButtons,
   );
-  
-  print("🔊 Đã xử lý thông báo cho user: $currentUserId với ${actionButtons.length} action buttons");
-}
+    print("🔊 Đã xử lý thông báo cho user: $currentUserId với ${actionButtons.length} action buttons");
+  print("🔊 Loại action: ${actionButtons.map((btn) => btn.label).toList()}");
+  }
 
 /// 🎯 Lấy tiêu đề mặc định theo loại notification
 String _getDefaultTitle(String? type) {
@@ -166,14 +172,14 @@ String _getDefaultTitle(String? type) {
 String _getDefaultBody(String? type, Map<String, dynamic> data) {
   switch (type) {
     case 'deviceAlert':
-      return 'Phát hiện chuyển động đáng ngờ!';
+      return 'Phát hiện chuyển động đáng ngờ tại ${data['locationDevice'] ?? 'khu vực được giám sát'}';
     case 'invitation':
-      return '${data['fromUserName'] ?? 'Ai đó'} mời bạn tham gia ngôi nhà';
+      return '${data['fromUserName'] ?? 'Ai đó'} mời bạn tham gia ngôi nhà "${data['homeName'] ?? ''}"';
     case 'invitation_response':
       final status = data['status'];
       return status == 'accepted' ? 'Lời mời được chấp nhận' : 'Lời mời bị từ chối';
     default:
-      return 'Bạn có thông báo mới';
+      return 'Bạn có thông báo mới từ hệ thống';
   }
 }
 
@@ -243,7 +249,11 @@ Future<void> main() async {
   await _setupFirebaseMessaging();
   await _scheduleDailyGreetings();
   
-  runApp(const MyApp());
+  runApp(
+    ProviderScope(
+      child: MyApp(),
+    ),
+  );
 }
 
 /// 🎯 Khởi tạo hệ thống thông báo
@@ -284,7 +294,7 @@ Future<void> _initializeNotifications() async {
     
     await Future.delayed(const Duration(milliseconds: 500));
     await _checkAndRequestNotificationPermission();
-    
+    _setupNotificationActionHandlers();
   } catch (e) {
     print('❌ Lỗi khởi tạo notifications: $e');
   }
@@ -593,7 +603,76 @@ void _handleForegroundMessage(RemoteMessage message) async {
 
   // 🎯 XỬ LÝ THEO LOẠI NOTIFICATION
   final notificationType = message.data['type'];
+  final notificationId = DateTime.now().millisecondsSinceEpoch.remainder(100000);
   
+  // 🎯 TẠO ACTION BUTTONS CHO FOREGROUND TƯƠNG TỰ BACKGROUND
+  List<NotificationActionButton> actionButtons = [];
+  
+  if (notificationType == 'invitation') {
+    actionButtons = [
+      NotificationActionButton(
+        key: 'reject',
+        label: '❌ Từ chối',
+        color: Colors.red,
+        autoDismissible: true,
+      ),
+      NotificationActionButton(
+        key: 'accept', 
+        label: '✅ Đồng ý',
+        color: Colors.green,
+        autoDismissible: true,
+      ),
+      NotificationActionButton(
+        key: 'delete',
+        label: '🗑️ Xóa',
+        color: Colors.grey,
+        autoDismissible: true,
+      ),
+    ];
+  } else if (notificationType == 'deviceAlert') {
+    actionButtons = [
+      NotificationActionButton(
+        key: 'mark_processed',
+        label: '✅ Đánh dấu đã xử lí',
+        color: Colors.green,
+        autoDismissible: true,
+      ),
+      NotificationActionButton(
+        key: 'delete',
+        label: '🗑️ Xóa',
+        color: Colors.grey,
+        autoDismissible: true,
+      ),
+    ];
+  }
+
+  // 🎯 HIỂN THỊ THÔNG BÁO FOREGROUND VỚI ACTION BUTTONS
+  if (actionButtons.isNotEmpty) {
+    await AwesomeNotifications().createNotification(
+      content: NotificationContent(
+        id: notificationId,
+        channelKey: notificationType == 'deviceAlert' ? 'alert_channel_v2' : 'daily_channel',
+        title: message.notification?.title ?? _getDefaultTitle(notificationType),
+        body: message.notification?.body ?? _getDefaultBody(notificationType, message.data),
+        notificationLayout: NotificationLayout.BigText,
+        actionType: ActionType.Default,
+        payload: {
+          'type': notificationType ?? 'unknown',
+          'timestamp': DateTime.now().toString(),
+          'userId': currentUserId,
+          'invitationId': message.data['invitationId'],
+          'homeId': message.data['homeId'],
+          'fromUserId': message.data['fromUserId'],
+          'deviceId': message.data['deviceId'],
+          'notificationId': notificationId.toString(),
+          'messageId': message.messageId,
+        },
+      ),
+      actionButtons: actionButtons,
+    );
+  }
+
+  print("🔊 Đã hiển thị thông báo foreground với ${actionButtons.length} action buttons");
   if (notificationType == 'invitation' || notificationType == 'invitation_response') {
     _handleInvitationNotification(message);
   } else if (notificationType == 'deviceAlert') {

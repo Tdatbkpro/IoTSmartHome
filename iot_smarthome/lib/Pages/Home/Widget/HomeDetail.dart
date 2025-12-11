@@ -1,9 +1,11 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:firebase_auth/firebase_auth.dart' hide User;
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:intl/intl.dart';
 import 'package:iot_smarthome/Controllers/Auth.dart';
 import 'package:iot_smarthome/Controllers/DeviceController.dart';
+import 'package:iot_smarthome/Controllers/UnifiedNotificationController.dart';
 import 'package:iot_smarthome/Models/HomeModel.dart';
 import 'package:iot_smarthome/Models/RoomModel.dart';
 import 'package:iot_smarthome/Models/UserModel.dart';
@@ -22,27 +24,28 @@ class HomeDetailPage extends StatefulWidget {
 }
 
 class _HomeDetailPageState extends State<HomeDetailPage> {
-   late HomeModel _currentHome;
+  late HomeModel _currentHome;
   final DeviceController deviceController = Get.find<DeviceController>();
-
+  final DeviceController _deviceController = Get.find<DeviceController>();
+  final FirebaseAuth _auth = FirebaseAuth.instance;
   @override
   void initState() {
     super.initState();
     _currentHome = widget.home;
   }
+
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final isDarkMode = theme.brightness == Brightness.dark;
-   
-    
+
     return Scaffold(
       backgroundColor: theme.scaffoldBackgroundColor,
       body: RefreshIndicator(
         onRefresh: () async {
           // 🌀 Tải lại danh sách homes
           final userId = _currentHome.ownerId;
-          deviceController.streamHomes(userId);
+          deviceController.streamAllHomes(userId);
 
           // Chờ homes cập nhật xong (GetX là reactive)
           await Future.delayed(const Duration(seconds: 1));
@@ -59,7 +62,7 @@ class _HomeDetailPageState extends State<HomeDetailPage> {
           }
         },
         child: CustomScrollView(
-          physics:  AlwaysScrollableScrollPhysics(),
+          physics: AlwaysScrollableScrollPhysics(),
           slivers: [
             // SliverAppBar với hiệu ứng giống RoomDetailPage
             SliverAppBar(
@@ -93,12 +96,18 @@ class _HomeDetailPageState extends State<HomeDetailPage> {
                             loadingBuilder: (context, child, loadingProgress) {
                               if (loadingProgress == null) return child;
                               return Container(
-                                color: isDarkMode ? Colors.grey[800] : Colors.grey[300],
+                                color: isDarkMode
+                                    ? Colors.grey[800]
+                                    : Colors.grey[300],
                                 child: Center(
                                   child: CircularProgressIndicator(
-                                    value: loadingProgress.expectedTotalBytes != null
-                                        ? loadingProgress.cumulativeBytesLoaded / 
-                                          loadingProgress.expectedTotalBytes!
+                                    value:
+                                        loadingProgress.expectedTotalBytes !=
+                                            null
+                                        ? loadingProgress
+                                                  .cumulativeBytesLoaded /
+                                              loadingProgress
+                                                  .expectedTotalBytes!
                                         : null,
                                     color: theme.primaryColor,
                                   ),
@@ -134,7 +143,10 @@ class _HomeDetailPageState extends State<HomeDetailPage> {
                 IconButton(
                   icon: Icon(Icons.edit_outlined, color: Colors.white),
                   onPressed: () {
-                    AddHomePage(isAddHome: false, homeModel: _currentHome).show(context);
+                    AddHomePage(
+                      isAddHome: false,
+                      homeModel: _currentHome,
+                    ).show(context);
                   },
                 ),
                 IconButton(
@@ -144,9 +156,10 @@ class _HomeDetailPageState extends State<HomeDetailPage> {
                   },
                 ),
               ],
-              backgroundColor: theme.appBarTheme.backgroundColor ?? theme.primaryColor,
+              backgroundColor:
+                  theme.appBarTheme.backgroundColor ?? theme.primaryColor,
             ),
-        
+
             // Thông tin thống kê home
             SliverToBoxAdapter(
               child: Padding(
@@ -169,7 +182,9 @@ class _HomeDetailPageState extends State<HomeDetailPage> {
                               _currentHome.location!,
                               style: TextStyle(
                                 fontSize: 14,
-                                color: theme.colorScheme.onSurface.withOpacity(0.7),
+                                color: theme.colorScheme.onSurface.withOpacity(
+                                  0.7,
+                                ),
                               ),
                               maxLines: 2,
                               overflow: TextOverflow.ellipsis,
@@ -179,7 +194,7 @@ class _HomeDetailPageState extends State<HomeDetailPage> {
                       ),
                       const SizedBox(height: 16),
                     ],
-        
+
                     // Thống kê nhanh
                     Container(
                       padding: const EdgeInsets.all(16),
@@ -188,7 +203,9 @@ class _HomeDetailPageState extends State<HomeDetailPage> {
                         borderRadius: BorderRadius.circular(16),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withOpacity(isDarkMode ? 0.1 : 0.05),
+                            color: Colors.black.withOpacity(
+                              isDarkMode ? 0.1 : 0.05,
+                            ),
                             blurRadius: 8,
                             offset: const Offset(0, 2),
                           ),
@@ -206,7 +223,9 @@ class _HomeDetailPageState extends State<HomeDetailPage> {
                           ),
                           _buildStatItem(
                             Icons.devices_outlined,
-                            _calculateTotalDevices(_currentHome.rooms).toString(),
+                            _calculateTotalDevices(
+                              _currentHome.rooms,
+                            ).toString(),
                             "Thiết bị",
                             Colors.green,
                             theme,
@@ -226,7 +245,7 @@ class _HomeDetailPageState extends State<HomeDetailPage> {
                 ),
               ),
             ),
-        
+
             // Section: Thành viên trong nhà
             SliverToBoxAdapter(
               child: Padding(
@@ -252,26 +271,36 @@ class _HomeDetailPageState extends State<HomeDetailPage> {
                           ),
                         ),
                         const Spacer(),
-                        TextButton.icon(
-                          onPressed: () {
-                           _showAddMemberDialog(context, _currentHome.id, _currentHome.id);
-                          },
-                          icon: Icon(Icons.person_add, size: 16, color: theme.primaryColor),
-                          label: Text(
-                            "Thêm thành viên",
-                            style: TextStyle(color: theme.primaryColor),
-                          ),
-                        ),
+                        _currentHome.ownerId == _auth.currentUser!.uid
+                            ? TextButton.icon(
+                                onPressed: () {
+                                  _showAddMemberDialog(
+                                    context,
+                                    _currentHome.id,
+                                    _currentHome.name,
+                                  );
+                                },
+                                icon: Icon(
+                                  Icons.person_add,
+                                  size: 16,
+                                  color: theme.primaryColor,
+                                ),
+                                label: Text(
+                                  "Thêm thành viên",
+                                  style: TextStyle(color: theme.primaryColor),
+                                ),
+                              )
+                            : const SizedBox(),
                       ],
                     ),
                     const SizedBox(height: 12),
-                    _buildMembersSection(context,_currentHome),
+                    _buildMembersSection(context, _currentHome, deviceController.getRoleOfHome(_currentHome) ),
                     const SizedBox(height: 24),
                   ],
                 ),
               ),
             ),
-        
+
             // Header danh sách phòng
             SliverToBoxAdapter(
               child: Padding(
@@ -301,7 +330,11 @@ class _HomeDetailPageState extends State<HomeDetailPage> {
                           onPressed: () {
                             AddRoomDialog.show(context, _currentHome.id);
                           },
-                          icon: Icon(Icons.add, size: 16, color: theme.primaryColor),
+                          icon: Icon(
+                            Icons.add,
+                            size: 16,
+                            color: theme.primaryColor,
+                          ),
                           label: Text(
                             "Thêm phòng",
                             style: TextStyle(color: theme.primaryColor),
@@ -314,26 +347,19 @@ class _HomeDetailPageState extends State<HomeDetailPage> {
                 ),
               ),
             ),
-        
+
             // Danh sách phòng
             _currentHome.rooms.isEmpty
-                ? SliverToBoxAdapter(
-                    child: _buildEmptyRoomsState(context),
-                  )
+                ? SliverToBoxAdapter(child: _buildEmptyRoomsState(context))
                 : SliverList(
-                    delegate: SliverChildBuilderDelegate(
-                      (context, index) {
-                        final room = _currentHome.rooms[index];
-                        return _buildRoomItem(context, room, index);
-                      },
-                      childCount: _currentHome.rooms.length,
-                    ),
+                    delegate: SliverChildBuilderDelegate((context, index) {
+                      final room = _currentHome.rooms[index];
+                      return _buildRoomItem(context, room, index);
+                    }, childCount: _currentHome.rooms.length),
                   ),
-        
+
             // Khoảng cách cuối cùng
-            const SliverToBoxAdapter(
-              child: SizedBox(height: 40),
-            ),
+            const SliverToBoxAdapter(child: SizedBox(height: 40)),
           ],
         ),
       ),
@@ -388,232 +414,240 @@ class _HomeDetailPageState extends State<HomeDetailPage> {
     );
   }
 
-  Widget _buildMembersSection(BuildContext context, HomeModel home) {
-  final theme = Theme.of(context);
-  final isDarkMode = theme.brightness == Brightness.dark;
-  
-  // Sử dụng dữ liệu thực từ home.members thay vì giả lập
-  final members = home.members;
+  Widget _buildMembersSection(BuildContext context, HomeModel home, HomeRole _currentUserRole) {
+    final theme = Theme.of(context);
+    final isDarkMode = theme.brightness == Brightness.dark;
 
-  return Container(
-    decoration: BoxDecoration(
-      color: theme.cardColor,
-      borderRadius: BorderRadius.circular(16),
-      boxShadow: [
-        BoxShadow(
-          color: Colors.black.withOpacity(isDarkMode ? 0.1 : 0.05),
-          blurRadius: 8,
-          offset: const Offset(0, 2),
-        ),
-      ],
-    ),
-    child: Column(
-      children: [
-        // Hiển thị chủ nhà đầu tiên
-        _buildMemberTile(
-          context, 
-          _MemberInfo(
-            userId: home.ownerId,
-            name: "Chủ nhà", // Cần fetch tên từ user service
-            email: "", // Cần fetch email từ user service
-            role: "Chủ sở hữu",
-            isOwner: true,
-            avatar: null,
+    // Sử dụng dữ liệu thực từ home.members thay vì giả lập
+    final members = home.members;
+
+    return Container(
+      decoration: BoxDecoration(
+        color: theme.cardColor,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withOpacity(isDarkMode ? 0.1 : 0.05),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
           ),
-        ),
-        
-        // Hiển thị các thành viên khác
-        ...members.map((member)  {
-          final authController = Get.find<AuthController>();
-          return  FutureBuilder(future: authController.getUserById(member.userId), 
-          builder: (context, snapshot) {
-           if (snapshot.connectionState == ConnectionState.waiting) {
-            return Center(
-              child: CircularProgressIndicator(),
+        ],
+      ),
+      child: Column(
+        children: [
+          // Hiển thị chủ nhà đầu tiên
+          _buildMemberTile(
+            context,
+            _MemberInfo(
+              userId: home.ownerId,
+              name: HomeRole.owner.displayName, // Cần fetch tên từ user service
+              email: "", // Cần fetch email từ user service
+              role: HomeRole.owner,
+              isOwner: true,
+              avatar: null,
+            ),
+            _currentUserRole,
+          ),
+
+          // Hiển thị các thành viên khác
+          ...members.map((member) {
+            final authController = Get.find<AuthController>();
+            return FutureBuilder(
+              future: authController.getUserById(member.userId),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return Center(child: CircularProgressIndicator());
+                }
+                if (!snapshot.hasData) {
+                  return Center(child: Text("Không có thông tin"));
+                }
+                final userInfo = snapshot.data;
+
+                return _buildMemberTile(
+                  context,
+                  _MemberInfo.fromHomeMember(member, userInfo!),
+                  _currentUserRole,
+                );
+              },
             );
-           }
-           if (!snapshot.hasData) {
-            return Center(
-              child: Text("Không có thông tin"),
-            );
-           }
-           final userInfo = snapshot.data;
+          }),
 
-            return _buildMemberTile(
-          context, 
-          _MemberInfo.fromHomeMember(member,userInfo!)
-        );
-          },);
-        }),
-        
-        // Nút thêm thành viên
-        ListTile(
-          leading: Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              color: theme.primaryColor.withOpacity(0.1),
-              shape: BoxShape.circle,
-            ),
-            child: Icon(
-              Icons.person_add_outlined,
-              color: theme.primaryColor,
-              size: 20,
-            ),
-          ),
-          title: Text(
-            "Thêm thành viên",
-            style: TextStyle(
-              color: theme.primaryColor,
-              fontWeight: FontWeight.w500,
-            ),
-          ),
-          onTap: () {
-            _showAddMemberDialog(context, _currentHome.id, _currentHome.name);
-          },
-        ),
-      ],
-    ),
-  );
-}
-
-Widget _buildMemberTile(BuildContext context, _MemberInfo member) {
-  final theme = Theme.of(context);
-  
-  return FutureBuilder<Map<String, dynamic>?>(
-    future: _fetchUserInfo(member.userId), // Hàm fetch thông tin user
-    builder: (context, snapshot) {
-      final userData = snapshot.data;
-      final displayName = userData?['name'] ?? member.name;
-      final email = userData?['email'] ?? member.email;
-      final avatar = userData?['profileImage'] ?? member.avatar;
-      
-      return ListTile(
-        leading: Stack(
-          children: [
-            Container(
-              width: 40,
-              height: 40,
-              decoration: BoxDecoration(
-                color: theme.primaryColor.withOpacity(0.1),
-                shape: BoxShape.circle,
-              ),
-              child: avatar != null && avatar.isNotEmpty
-                  ? CircleAvatar(
-                      backgroundImage: NetworkImage(avatar),
-                    )
-                  : Icon(
-                      Icons.person_outlined,
-                      color: theme.primaryColor,
+          // Nút thêm thành viên
+          _currentHome.ownerId == _auth.currentUser!.uid
+              ? ListTile(
+                  leading: Container(
+                    width: 40,
+                    height: 40,
+                    decoration: BoxDecoration(
+                      color: theme.primaryColor.withOpacity(0.1),
+                      shape: BoxShape.circle,
                     ),
-            ),
-            if (member.isOwner)
-              Positioned(
-                bottom: 0,
-                right: 0,
-                child: Container(
-                  padding: const EdgeInsets.all(4),
-                  decoration: BoxDecoration(
-                    color: Colors.amber,
-                    shape: BoxShape.circle,
-                    border: Border.all(color: theme.cardColor, width: 2),
+                    child: Icon(
+                      Icons.person_add_outlined,
+                      color: theme.primaryColor,
+                      size: 20,
+                    ),
                   ),
-                  child: Icon(
-                    Icons.star,
-                    color: Colors.white,
-                    size: 12,
+                  title: Text(
+                    "Thêm thành viên",
+                    style: TextStyle(
+                      color: theme.primaryColor,
+                      fontWeight: FontWeight.w500,
+                    ),
                   ),
-                ),
-              ),
-          ],
-        ),
-        title: Row(
-          children: [
-            Text(
-              displayName,
-              style: TextStyle(
-                fontWeight: FontWeight.w500,
-                color: theme.colorScheme.onSurface,
-              ),
-            ),
-            if (member.isOwner) ...[
-              const SizedBox(width: 8),
+                  onTap: () {
+                    _showAddMemberDialog(
+                      context,
+                      _currentHome.id,
+                      _currentHome.name,
+                    );
+                  },
+                )
+              : const SizedBox(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMemberTile(BuildContext context, _MemberInfo member, HomeRole currentUserRole) {
+    final theme = Theme.of(context);
+
+    return FutureBuilder<Map<String, dynamic>?>(
+      future: _fetchUserInfo(member.userId), // Hàm fetch thông tin user
+      builder: (context, snapshot) {
+        final userData = snapshot.data;
+        final displayName = userData?['name'] ?? member.name;
+        final email = userData?['email'] ?? member.email;
+        final avatar = userData?['profileImage'] ?? member.avatar;
+        //final currentUserRole = member.role.
+        return ListTile(
+          leading: Stack(
+            children: [
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                decoration: BoxDecoration(
-                  color: Colors.amber.withOpacity(0.2),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Text(
-                  "Chủ nhà",
-                  style: TextStyle(
-                    color: Colors.amber[700],
-                    fontSize: 10,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-            ] else if (member.role.isNotEmpty) ...[
-              const SizedBox(width: 8),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                width: 40,
+                height: 40,
                 decoration: BoxDecoration(
                   color: theme.primaryColor.withOpacity(0.1),
-                  borderRadius: BorderRadius.circular(12),
+                  shape: BoxShape.circle,
                 ),
-                child: Text(
-                  member.role,
-                  style: TextStyle(
-                    color: theme.primaryColor,
-                    fontSize: 10,
-                    fontWeight: FontWeight.w600,
+                child: avatar != null && avatar.isNotEmpty
+                    ? CircleAvatar(backgroundImage: NetworkImage(avatar))
+                    : Icon(Icons.person_outlined, color: theme.primaryColor),
+              ),
+              if (member.isOwner)
+                Positioned(
+                  bottom: 0,
+                  right: 0,
+                  child: Container(
+                    padding: const EdgeInsets.all(4),
+                    decoration: BoxDecoration(
+                      color: Colors.amber,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: theme.cardColor, width: 2),
+                    ),
+                    child: Icon(Icons.star, color: Colors.white, size: 12),
                   ),
                 ),
-              ),
             ],
-          ],
-        ),
-        subtitle: email.isNotEmpty ? Text(
-          email,
-          style: TextStyle(
-            color: theme.colorScheme.onSurface.withOpacity(0.6),
-            fontSize: 12,
           ),
-        ) : null,
-        trailing: !member.isOwner
-            ? IconButton(
-                icon: Icon(
-                  Icons.more_vert,
-                  color: theme.colorScheme.onSurface.withOpacity(0.5),
-                  size: 20,
+          title: Row(
+            children: [
+              Text(
+                member.userId == _auth.currentUser!.uid
+                    ? "(Bạn) $displayName"
+                    : displayName,
+                style: TextStyle(
+                  fontWeight: FontWeight.w500,
+                  color: theme.colorScheme.onSurface,
                 ),
-                onPressed: () {
-                  _showMemberOptions(context, member);
-                },
-              )
-            : null,
-      );
-    },
-  );
-}
-
-// Hàm fetch thông tin user từ Firestore
-Future<Map<String, dynamic>?> _fetchUserInfo(String userId) async {
-  try {
-    final doc = await FirebaseFirestore.instance
-        .collection('users')
-        .doc(userId)
-        .get();
-    
-    if (doc.exists) {
-      return doc.data();
-    }
-    return null;
-  } catch (e) {
-    print('Error fetching user info: $e');
-    return null;
+              ),
+              if (member.isOwner) ...[
+                const SizedBox(width: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 2,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.amber.withOpacity(0.2),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    "Chủ nhà",
+                    style: TextStyle(
+                      color: Colors.amber[700],
+                      fontSize: 10,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ] else if (member.role.displayName.isNotEmpty) ...[
+                const SizedBox(width: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 2,
+                  ),
+                  decoration: BoxDecoration(
+                    color: theme.primaryColor.withOpacity(0.1),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: Text(
+                    member.role.displayName,
+                    style: TextStyle(
+                      color: theme.primaryColor,
+                      fontSize: 10,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+          subtitle: email.isNotEmpty
+              ? Text(
+                  email,
+                  style: TextStyle(
+                    color: theme.colorScheme.onSurface.withOpacity(0.6),
+                    fontSize: 12,
+                  ),
+                )
+              : null,
+          trailing: !member.isOwner
+              ? IconButton(
+                  icon: Icon(
+                    Icons.more_vert,
+                    color: theme.colorScheme.onSurface.withOpacity(0.5),
+                    size: 20,
+                  ),
+                  onPressed: () {
+                    _showMemberOptions(context, member, currentUserRole);
+                  },
+                )
+              : null,
+        );
+      },
+    );
   }
-}
+
+  // Hàm fetch thông tin user từ Firestore
+  Future<Map<String, dynamic>?> _fetchUserInfo(String userId) async {
+    try {
+      final doc = await FirebaseFirestore.instance
+          .collection('users')
+          .doc(userId)
+          .get();
+
+      if (doc.exists) {
+        return doc.data();
+      }
+      return null;
+    } catch (e) {
+      print('Error fetching user info: $e');
+      return null;
+    }
+  }
+
   Widget _buildRoomItem(BuildContext context, RoomModel room, int index) {
     final theme = Theme.of(context);
     final isDarkMode = theme.brightness == Brightness.dark;
@@ -726,7 +760,7 @@ Future<Map<String, dynamic>?> _fetchUserInfo(String userId) async {
 
   Widget _buildEmptyRoomsState(BuildContext context) {
     final theme = Theme.of(context);
-    
+
     return Container(
       padding: const EdgeInsets.all(40),
       margin: const EdgeInsets.symmetric(horizontal: 20),
@@ -765,7 +799,10 @@ Future<Map<String, dynamic>?> _fetchUserInfo(String userId) async {
               AddRoomDialog.show(context, _currentHome.id);
             },
             icon: Icon(Icons.add, size: 18, color: theme.colorScheme.onPrimary),
-            label: Text("Thêm phòng mới", style: TextStyle(color: theme.colorScheme.onPrimary)),
+            label: Text(
+              "Thêm phòng mới",
+              style: TextStyle(color: theme.colorScheme.onPrimary),
+            ),
             style: ElevatedButton.styleFrom(
               backgroundColor: theme.primaryColor,
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
@@ -821,7 +858,7 @@ Future<Map<String, dynamic>?> _fetchUserInfo(String userId) async {
 
   void _showHomeOptions(BuildContext context) {
     final theme = Theme.of(context);
-    
+
     showModalBottomSheet(
       context: context,
       backgroundColor: theme.dialogBackgroundColor,
@@ -834,32 +871,59 @@ Future<Map<String, dynamic>?> _fetchUserInfo(String userId) async {
             mainAxisSize: MainAxisSize.min,
             children: [
               ListTile(
-                leading: Icon(Icons.edit_outlined, color: theme.colorScheme.onSurface),
-                title: Text('Chỉnh sửa thông tin nhà', style: TextStyle(color: theme.colorScheme.onSurface)),
+                leading: Icon(
+                  Icons.edit_outlined,
+                  color: theme.colorScheme.onSurface,
+                ),
+                title: Text(
+                  'Chỉnh sửa thông tin nhà',
+                  style: TextStyle(color: theme.colorScheme.onSurface),
+                ),
                 onTap: () {
                   Navigator.pop(context);
-                  AddHomePage(isAddHome:false, homeModel: _currentHome).show(context);
+                  AddHomePage(
+                    isAddHome: false,
+                    homeModel: _currentHome,
+                  ).show(context);
                 },
               ),
               ListTile(
-                leading: Icon(Icons.people_outlined, color: theme.colorScheme.onSurface),
-                title: Text('Quản lý thành viên', style: TextStyle(color: theme.colorScheme.onSurface)),
+                leading: Icon(
+                  Icons.people_outlined,
+                  color: theme.colorScheme.onSurface,
+                ),
+                title: Text(
+                  'Quản lý thành viên',
+                  style: TextStyle(color: theme.colorScheme.onSurface),
+                ),
                 onTap: () {
                   Navigator.pop(context);
                   _showMembersManagement(context);
                 },
               ),
               ListTile(
-                leading: Icon(Icons.share_outlined, color: theme.colorScheme.onSurface),
-                title: Text('Chia sẻ quyền truy cập', style: TextStyle(color: theme.colorScheme.onSurface)),
+                leading: Icon(
+                  Icons.share_outlined,
+                  color: theme.colorScheme.onSurface,
+                ),
+                title: Text(
+                  'Chia sẻ quyền truy cập',
+                  style: TextStyle(color: theme.colorScheme.onSurface),
+                ),
                 onTap: () {
                   Navigator.pop(context);
                   // Share home access
                 },
               ),
               ListTile(
-                leading: Icon(Icons.qr_code_2_outlined, color: theme.colorScheme.onSurface),
-                title: Text('Mã QR nhà', style: TextStyle(color: theme.colorScheme.onSurface)),
+                leading: Icon(
+                  Icons.qr_code_2_outlined,
+                  color: theme.colorScheme.onSurface,
+                ),
+                title: Text(
+                  'Mã QR nhà',
+                  style: TextStyle(color: theme.colorScheme.onSurface),
+                ),
                 onTap: () {
                   Navigator.pop(context);
                   // Show QR code
@@ -883,7 +947,7 @@ Future<Map<String, dynamic>?> _fetchUserInfo(String userId) async {
 
   void _showMembersManagement(BuildContext context) {
     final theme = Theme.of(context);
-    
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -907,108 +971,132 @@ Future<Map<String, dynamic>?> _fetchUserInfo(String userId) async {
   }
 
   // Cập nhật _showAddMemberDialog
-void _showAddMemberDialog(BuildContext context, String homeId, String homeName) {
-  final theme = Theme.of(context);
-  final invitationService = Get.put(InvitationService());
-  final TextEditingController emailController = TextEditingController();
-  final isLoading = false.obs;
-
-  showDialog(
-    context: context,
-    builder: (context) => Obx(() => AlertDialog(
-      backgroundColor: theme.dialogBackgroundColor,
-      title: Text(
-        "Thêm thành viên",
-        style: TextStyle(color: theme.colorScheme.onSurface),
-      ),
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          TextField(
-            controller: emailController,
-            decoration: InputDecoration(
-              labelText: "Email thành viên",
-              labelStyle: TextStyle(color: theme.colorScheme.onSurface.withOpacity(0.7)),
-              border: OutlineInputBorder(
-                borderRadius: BorderRadius.circular(12),
-              ),
-              hintText: "nhập email người dùng",
-            ),
-            keyboardType: TextInputType.emailAddress,
-          ),
-          const SizedBox(height: 16),
-          Text(
-            "Thành viên sẽ nhận được lời mời tham gia ngôi nhà này",
-            style: TextStyle(
-              color: theme.colorScheme.onSurface.withOpacity(0.6),
-              fontSize: 12,
-            ),
-          ),
-          if (isLoading.value) ...[
-            const SizedBox(height: 16),
-            CircularProgressIndicator(),
-          ],
-        ],
-      ),
-      actions: [
-        TextButton(
-          onPressed: isLoading.value ? null : () => Navigator.pop(context),
-          child: Text("Hủy", 
-            style: TextStyle(color: theme.colorScheme.onSurface.withOpacity(0.7))),
-        ),
-        ElevatedButton(
-          onPressed: isLoading.value ? null : () async {
-            final email = emailController.text.trim();
-            if (email.isEmpty) {
-              Get.snackbar('Lỗi', 'Vui lòng nhập email',
-                backgroundColor: Colors.red,
-                colorText: Colors.white,
-              );
-              return;
-            }
-
-            if (!RegExp(r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(email)) {
-              Get.snackbar('Lỗi', 'Email không hợp lệ',
-                backgroundColor: Colors.red,
-                colorText: Colors.white,
-              );
-              return;
-            }
-
-            isLoading.value = true;
-            try {
-              await invitationService.sendInvitation(
-                toUserEmail: email,
-                homeId: homeId,
-                homeName: homeName,
-              );
-              
-              Navigator.pop(context);
-              Get.snackbar('Thành công', 'Đã gửi lời mời đến $email',
-                backgroundColor: Colors.green,
-                colorText: Colors.white,
-                duration: Duration(seconds: 3),
-              );
-            } catch (e) {
-              Get.snackbar('Lỗi', e.toString(),
-                backgroundColor: Colors.red,
-                colorText: Colors.white,
-                duration: Duration(seconds: 5),
-              );
-            } finally {
-              isLoading.value = false;
-            }
-          },
-          child: Text("Gửi lời mời"),
-        ),
-      ],
-    )),
-  );
-}
-
-  void _showMemberOptions(BuildContext context, _MemberInfo member) {
+  void _showAddMemberDialog(
+    BuildContext context,
+    String homeId,
+    String homeName,
+  ) {
     final theme = Theme.of(context);
-    
+    final invitationService = Get.put(InvitationService());
+    final TextEditingController emailController = TextEditingController();
+    final isLoading = false.obs;
+
+    showDialog(
+      context: context,
+      builder: (context) => Obx(
+        () => AlertDialog(
+          backgroundColor: theme.dialogBackgroundColor,
+          title: Text(
+            "Thêm thành viên",
+            style: TextStyle(color: theme.colorScheme.onSurface),
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextField(
+                controller: emailController,
+                decoration: InputDecoration(
+                  labelText: "Email thành viên",
+                  labelStyle: TextStyle(
+                    color: theme.colorScheme.onSurface.withOpacity(0.7),
+                  ),
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  hintText: "nhập email người dùng",
+                ),
+                keyboardType: TextInputType.emailAddress,
+              ),
+              const SizedBox(height: 16),
+              Text(
+                "Thành viên sẽ nhận được lời mời tham gia ngôi nhà này",
+                style: TextStyle(
+                  color: theme.colorScheme.onSurface.withOpacity(0.6),
+                  fontSize: 12,
+                ),
+              ),
+              if (isLoading.value) ...[
+                const SizedBox(height: 16),
+                CircularProgressIndicator(),
+              ],
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: isLoading.value ? null : () => Navigator.pop(context),
+              child: Text(
+                "Hủy",
+                style: TextStyle(
+                  color: theme.colorScheme.onSurface.withOpacity(0.7),
+                ),
+              ),
+            ),
+            ElevatedButton(
+              onPressed: isLoading.value
+                  ? null
+                  : () async {
+                      final email = emailController.text.trim();
+                      if (email.isEmpty) {
+                        Get.snackbar(
+                          'Lỗi',
+                          'Vui lòng nhập email',
+                          backgroundColor: Colors.red,
+                          colorText: Colors.white,
+                        );
+                        return;
+                      }
+
+                      if (!RegExp(
+                        r'^[\w-\.]+@([\w-]+\.)+[\w-]{2,4}$',
+                      ).hasMatch(email)) {
+                        Get.snackbar(
+                          'Lỗi',
+                          'Email không hợp lệ',
+                          backgroundColor: Colors.red,
+                          colorText: Colors.white,
+                        );
+                        return;
+                      }
+
+                      isLoading.value = true;
+                      try {
+                        await invitationService.sendInvitation(
+                          toUserEmail: email,
+                          homeId: homeId,
+                          homeName: homeName,
+                        );
+
+                        Navigator.pop(context);
+                        Get.snackbar(
+                          'Thành công',
+                          'Đã gửi lời mời đến $email',
+                          backgroundColor: Colors.green,
+                          colorText: Colors.white,
+                          duration: Duration(seconds: 3),
+                        );
+                      } catch (e) {
+                        Get.snackbar(
+                          'Lỗi',
+                          e.toString(),
+                          backgroundColor: Colors.red,
+                          colorText: Colors.white,
+                          duration: Duration(seconds: 5),
+                        );
+                      } finally {
+                        isLoading.value = false;
+                      }
+                    },
+              child: Text("Gửi lời mời"),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _showMemberOptions(BuildContext context, _MemberInfo member, HomeRole currentUserRole) {
+    final theme = Theme.of(context);
+
     showModalBottomSheet(
       context: context,
       backgroundColor: theme.dialogBackgroundColor,
@@ -1021,538 +1109,586 @@ void _showAddMemberDialog(BuildContext context, String homeId, String homeName) 
             mainAxisSize: MainAxisSize.min,
             children: [
               ListTile(
-                leading: Icon(Icons.remove_red_eye_outlined, color: theme.colorScheme.onSurface),
-                title: Text('Xem thông tin', style: TextStyle(color: theme.colorScheme.onSurface)),
+                leading: Icon(
+                  Icons.remove_red_eye_outlined,
+                  color: theme.colorScheme.onSurface,
+                ),
+                title: Text(
+                  'Xem thông tin',
+                  style: TextStyle(color: theme.colorScheme.onSurface),
+                ),
                 onTap: () {
                   Navigator.pop(context);
                   _showMemberInfo(context, member);
                 },
               ),
-              ListTile(
-                leading: Icon(Icons.admin_panel_settings_outlined, color: theme.colorScheme.onSurface),
-                title: Text('Phân quyền', style: TextStyle(color: theme.colorScheme.onSurface)),
-                onTap: () {
-                  Navigator.pop(context);
-                  _showRoleManagementDialog(context, member);
-                  // Phân quyền thành viên
-                },
-              ),
-              const Divider(),
-              ListTile(
-                leading: Icon(Icons.person_remove_outlined, color: Colors.red),
-                title: Text('Xóa thành viên', style: TextStyle(color: Colors.red)),
-                onTap: () {
-                  Navigator.pop(context);
-                  _showRemoveMemberDialog(context, member);
-                },
-              ),
+              if (_currentHome.ownerId == _auth.currentUser!.uid ||
+                  currentUserRole == HomeRole.admin) ...[
+                ListTile(
+                  leading: Icon(
+                    Icons.admin_panel_settings_outlined,
+                    color: theme.colorScheme.onSurface,
+                  ),
+                  title: Text(
+                    'Phân quyền',
+                    style: TextStyle(color: theme.colorScheme.onSurface),
+                  ),
+                  onTap: () {
+                    Navigator.pop(context);
+                    if (currentUserRole == member.role) DialogUtils.showErrorDialog(context, "Bạn và thành viên này có cùng quyền");
+                    else _showRoleManagementDialog(context, member);
+                    // Phân quyền thành viên
+                  },
+                ),
+                const Divider(),
+                ListTile(
+                  leading: Icon(
+                    Icons.person_remove_outlined,
+                    color: Colors.red,
+                  ),
+                  title: Text(
+                    'Xóa thành viên',
+                    style: TextStyle(color: Colors.red),
+                  ),
+                  onTap: () {
+                    Navigator.pop(context);
+                    _showRemoveMemberDialog(context, member);
+                  },
+                ),
+              ],
             ],
           ),
         );
       },
     );
   }
-Widget _buildInfoRow(BuildContext context, IconData icon, String label, String value) {
-  final theme = Theme.of(context);
+
   
-  return Row(
-    children: [
-      Container(
-        width: 32,
-        height: 32,
-        decoration: BoxDecoration(
-          color: theme.primaryColor.withOpacity(0.1),
-          borderRadius: BorderRadius.circular(8),
+
+  Widget _buildInfoRow(
+    BuildContext context,
+    IconData icon,
+    String label,
+    String value,
+  ) {
+    final theme = Theme.of(context);
+
+    return Row(
+      children: [
+        Container(
+          width: 32,
+          height: 32,
+          decoration: BoxDecoration(
+            color: theme.primaryColor.withOpacity(0.1),
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Icon(icon, color: theme.primaryColor, size: 16),
         ),
-        child: Icon(
-          icon,
-          color: theme.primaryColor,
-          size: 16,
-        ),
-      ),
-      const SizedBox(width: 12),
-      Expanded(
-        flex: 2,
-        child: Text(
-          label,
-          style: TextStyle(
-            color: theme.colorScheme.onSurface.withOpacity(0.7),
-            fontSize: 14,
+        const SizedBox(width: 12),
+        Expanded(
+          flex: 2,
+          child: Text(
+            label,
+            style: TextStyle(
+              color: theme.colorScheme.onSurface.withOpacity(0.7),
+              fontSize: 14,
+            ),
           ),
         ),
-      ),
-      Expanded(
-        flex: 3,
-        child: Text(
-          value,
-          style: TextStyle(
-            color: theme.colorScheme.onSurface,
-            fontSize: 14,
-            fontWeight: FontWeight.w500,
+        Expanded(
+          flex: 3,
+          child: Text(
+            value,
+            style: TextStyle(
+              color: theme.colorScheme.onSurface,
+              fontSize: 14,
+              fontWeight: FontWeight.w500,
+            ),
+            textAlign: TextAlign.right,
           ),
-          textAlign: TextAlign.right,
         ),
-      ),
-    ],
-  );
-}
+      ],
+    );
+  }
+
   void _showMemberInfo(BuildContext context, _MemberInfo member) {
-  final theme = Theme.of(context);
-  final isDark = theme.brightness == Brightness.dark;
-  
-  showDialog(
-    context: context,
-    builder: (context) => Dialog(
-      backgroundColor: theme.dialogBackgroundColor,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(20),
-      ),
-      child: Container(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // Header với avatar lớn
-            Container(
-              width: 100,
-              height: 100,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                border: Border.all(
-                  color: theme.primaryColor.withOpacity(0.3),
-                  width: 3,
+    final theme = Theme.of(context);
+    final isDark = theme.brightness == Brightness.dark;
+
+    showDialog(
+      context: context,
+      builder: (context) => Dialog(
+        backgroundColor: theme.dialogBackgroundColor,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        child: Container(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Header với avatar lớn
+              Container(
+                width: 100,
+                height: 100,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: theme.primaryColor.withOpacity(0.3),
+                    width: 3,
+                  ),
+                  gradient: LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [
+                      theme.primaryColor.withOpacity(0.1),
+                      theme.primaryColor.withOpacity(0.05),
+                    ],
+                  ),
                 ),
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [
-                    theme.primaryColor.withOpacity(0.1),
-                    theme.primaryColor.withOpacity(0.05),
+                child: member.avatar != null
+                    ? ClipOval(
+                        child: Image.network(member.avatar!, fit: BoxFit.cover),
+                      )
+                    : Icon(
+                        Icons.person_outlined,
+                        color: theme.primaryColor,
+                        size: 40,
+                      ),
+              ),
+
+              const SizedBox(height: 20),
+
+              // Tên thành viên
+              Text(
+                member.name,
+                style: TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.w700,
+                  color: theme.colorScheme.onSurface,
+                ),
+              ),
+
+              const SizedBox(height: 8),
+
+              // Email
+              Text(
+                member.email,
+                style: TextStyle(
+                  fontSize: 14,
+                  color: theme.colorScheme.onSurface.withOpacity(0.7),
+                ),
+              ),
+
+              const SizedBox(height: 16),
+
+              // Badge role với màu sắc đẹp
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 8,
+                ),
+                decoration: BoxDecoration(
+                  gradient: member.isOwner
+                      ? LinearGradient(
+                          colors: [
+                            Colors.amber.shade400,
+                            Colors.orange.shade600,
+                          ],
+                        )
+                      : LinearGradient(
+                          colors: [
+                            theme.primaryColor,
+                            theme.primaryColor.withOpacity(0.8),
+                          ],
+                        ),
+                  borderRadius: BorderRadius.circular(20),
+                  boxShadow: [
+                    BoxShadow(
+                      color:
+                          (member.isOwner ? Colors.amber : theme.primaryColor)
+                              .withOpacity(0.3),
+                      blurRadius: 10,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(
+                      member.isOwner
+                          ? Icons.star_rounded
+                          : Icons.person_rounded,
+                      color: Colors.white,
+                      size: 16,
+                    ),
+                    const SizedBox(width: 6),
+                    Text(
+                      member.role.displayName,
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
                   ],
                 ),
               ),
-              child: member.avatar != null
-                  ? ClipOval(
-                      child: Image.network(
-                        member.avatar!,
-                        fit: BoxFit.cover,
+
+              const SizedBox(height: 20),
+
+              // Thông tin chi tiết
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: theme.cardColor,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: theme.dividerColor.withOpacity(0.1),
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Thông tin chi tiết',
+                      style: TextStyle(
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                        color: theme.colorScheme.onSurface,
                       ),
-                    )
-                  : Icon(
-                      Icons.person_outlined,
-                      color: theme.primaryColor,
-                      size: 40,
                     ),
-            ),
-            
-            const SizedBox(height: 20),
-            
-            // Tên thành viên
-            Text(
-              member.name,
-              style: TextStyle(
-                fontSize: 22,
-                fontWeight: FontWeight.w700,
-                color: theme.colorScheme.onSurface,
-              ),
-            ),
-            
-            const SizedBox(height: 8),
-            
-            // Email
-            Text(
-              member.email,
-              style: TextStyle(
-                fontSize: 14,
-                color: theme.colorScheme.onSurface.withOpacity(0.7),
-              ),
-            ),
-            
-            const SizedBox(height: 16),
-            
-            // Badge role với màu sắc đẹp
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-              decoration: BoxDecoration(
-                gradient: member.isOwner 
-                  ? LinearGradient(
-                      colors: [Colors.amber.shade400, Colors.orange.shade600],
-                    )
-                  : LinearGradient(
-                      colors: [theme.primaryColor, theme.primaryColor.withOpacity(0.8)],
+
+                    const SizedBox(height: 12),
+
+                    _buildInfoRow(
+                      context,
+                      Icons.calendar_today_rounded,
+                      'Tham gia từ',
+                      member.joinedAt ??
+                          "Không rõ", // Cần thay bằng joinDate thực tế
                     ),
-                borderRadius: BorderRadius.circular(20),
-                boxShadow: [
-                  BoxShadow(
-                    color: (member.isOwner ? Colors.amber : theme.primaryColor).withOpacity(0.3),
-                    blurRadius: 10,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Icon(
-                    member.isOwner ? Icons.star_rounded : Icons.person_rounded,
-                    color: Colors.white,
-                    size: 16,
-                  ),
-                  const SizedBox(width: 6),
-                  Text(
-                    member.role,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
+
+                    const SizedBox(height: 8),
+
+                    _buildInfoRow(
+                      context,
+                      Icons.security_rounded,
+                      'Quyền hạn',
+
+                      member.role.description,
                     ),
-                  ),
-                ],
-              ),
-            ),
-            
-            const SizedBox(height: 20),
-            
-            // Thông tin chi tiết
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: theme.cardColor,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(
-                  color: theme.dividerColor.withOpacity(0.1),
+                  ],
                 ),
               ),
+
+              const SizedBox(height: 20),
+
+              // Nút đóng
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () => Navigator.pop(context),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: theme.primaryColor,
+                    foregroundColor: Colors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                  ),
+                  child: const Text('Đóng'),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showRoleManagementDialog(BuildContext context, _MemberInfo member) {
+    final theme = Theme.of(context);
+    HomeRole selectedRole = member.role;
+
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) {
+          return Dialog(
+            backgroundColor: theme.dialogBackgroundColor,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Container(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Header
+                  Container(
+                    width: 60,
+                    height: 60,
+                    decoration: BoxDecoration(
+                      color: Colors.purple.withOpacity(0.1),
+                      shape: BoxShape.circle,
+                    ),
+                    child: Icon(
+                      Icons.admin_panel_settings_rounded,
+                      color: Colors.purple,
+                      size: 30,
+                    ),
+                  ),
+
+                  const SizedBox(height: 16),
+
+                  Text(
+                    'Phân Quyền Thành Viên',
+                    style: TextStyle(
+                      fontSize: 20,
+                      fontWeight: FontWeight.w700,
+                      color: theme.colorScheme.onSurface,
+                    ),
+                  ),
+
+                  const SizedBox(height: 8),
+
+                  Text(
+                    'Chọn quyền cho ${member.name}',
+                    style: TextStyle(
+                      color: theme.colorScheme.onSurface.withOpacity(0.7),
+                    ),
+                  ),
+
+                  const SizedBox(height: 24),
+
+                  // Danh sách quyền
+                  Container(
+                    width: double.infinity,
+                    decoration: BoxDecoration(
+                      color: theme.cardColor,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: theme.dividerColor.withOpacity(0.1),
+                      ),
+                    ),
+                    child: Column(
+                      children: [
+                        // Quyền Admin
+                        _buildRoleOption(
+                          context,
+                          value: HomeRole.admin,
+                          title: HomeRole.admin.displayName,
+                          description: HomeRole.admin.description,
+                          icon: Icons.admin_panel_settings_rounded,
+                          iconColor: Colors.purple,
+                          isSelected: selectedRole == HomeRole.admin,
+                          onTap: () =>
+                              setState(() => selectedRole = HomeRole.admin),
+                        ),
+
+                        const Divider(height: 1),
+
+                        // Quyền Member
+                        _buildRoleOption(
+                          context,
+                          value: HomeRole.member,
+                          title: HomeRole.member.displayName,
+                          description: HomeRole.member.description,
+                          icon: Icons.person_rounded,
+                          iconColor: Colors.blue,
+                          isSelected: selectedRole == HomeRole.member,
+                          onTap: () =>
+                              setState(() => selectedRole = HomeRole.member),
+                        ),
+
+                        const Divider(height: 1),
+
+                        // Quyền Guest
+                        _buildRoleOption(
+                          context,
+                          value: HomeRole.guess,
+                          title: HomeRole.guess.displayName,
+                          description: HomeRole.guess.description,
+                          icon: Icons.visibility_rounded,
+                          iconColor: Colors.green,
+                          isSelected: selectedRole == HomeRole.guess,
+                          onTap: () =>
+                              setState(() => selectedRole = HomeRole.guess),
+                        ),
+                      ],
+                    ),
+                  ),
+
+                  const SizedBox(height: 24),
+
+                  // Nút hành động
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: () => Navigator.pop(context),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: theme.colorScheme.onSurface,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            side: BorderSide(color: theme.dividerColor),
+                          ),
+                          child: const Text('Hủy'),
+                        ),
+                      ),
+
+                      const SizedBox(width: 12),
+
+                      Expanded(
+                        child: ElevatedButton(
+                          onPressed: () async {
+                            _updateMemberRole(member.userId, selectedRole);
+                            Navigator.pop(context);
+
+                            // Hiển thị snackbar thông báo
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(
+                                  'Đã cập nhật quyền cho ${member.name}',
+                                ),
+                                backgroundColor: Colors.green,
+                                behavior: SnackBarBehavior.floating,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(12),
+                                ),
+                              ),
+                            );
+                          },
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.purple,
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                          ),
+                          child: const Text('Xác nhận'),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildRoleOption(
+    BuildContext context, {
+    required HomeRole value,
+    required String title,
+    required String description,
+    required IconData icon,
+    required Color iconColor,
+    required bool isSelected,
+    required VoidCallback onTap,
+  }) {
+    final theme = Theme.of(context);
+
+    return InkWell(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: isSelected
+              ? theme.primaryColor.withOpacity(0.1)
+              : Colors.transparent,
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Row(
+          children: [
+            // Radio button
+            Container(
+              width: 20,
+              height: 20,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                border: Border.all(
+                  color: isSelected ? theme.primaryColor : theme.dividerColor,
+                  width: 2,
+                ),
+              ),
+              child: isSelected
+                  ? Container(
+                      margin: const EdgeInsets.all(3),
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: theme.primaryColor,
+                      ),
+                    )
+                  : null,
+            ),
+
+            const SizedBox(width: 16),
+
+            // Icon
+            Container(
+              width: 40,
+              height: 40,
+              decoration: BoxDecoration(
+                color: iconColor.withOpacity(0.1),
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Icon(icon, color: iconColor, size: 20),
+            ),
+
+            const SizedBox(width: 12),
+
+            // Text content
+            Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Thông tin chi tiết',
+                    title,
                     style: TextStyle(
-                      fontSize: 16,
                       fontWeight: FontWeight.w600,
                       color: theme.colorScheme.onSurface,
                     ),
                   ),
-                  
-                  const SizedBox(height: 12),
-                  
-                  _buildInfoRow(
-                    context,
-                    Icons.calendar_today_rounded,
-                    'Tham gia từ',
-                    member.joinedAt ?? "Không rõ", // Cần thay bằng joinDate thực tế
-                  ),
-                
-                  
-                  const SizedBox(height: 8),
-                  
-                  _buildInfoRow(
-                    context,
-                    Icons.security_rounded,
-                    'Quyền hạn',
-
-                    member.isOwner ? HomeRole.admin.description : HomeRole.member.description,
+                  const SizedBox(height: 2),
+                  Text(
+                    description,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: theme.colorScheme.onSurface.withOpacity(0.6),
+                    ),
                   ),
                 ],
-              ),
-            ),
-            
-            const SizedBox(height: 20),
-            
-            // Nút đóng
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: () => Navigator.pop(context),
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: theme.primaryColor,
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                ),
-                child: const Text('Đóng'),
               ),
             ),
           ],
         ),
       ),
-    ),
-  );
-}
+    );
+  }
 
-void _showRoleManagementDialog(BuildContext context, _MemberInfo member) {
-  final theme = Theme.of(context);
-  String selectedRole = member.role;
-  
-  showDialog(
-    context: context,
-    builder: (context) => StatefulBuilder(
-      builder: (context, setState) {
-        return Dialog(
-          backgroundColor: theme.dialogBackgroundColor,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
-          ),
-          child: Container(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                // Header
-                Container(
-                  width: 60,
-                  height: 60,
-                  decoration: BoxDecoration(
-                    color: Colors.purple.withOpacity(0.1),
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(
-                    Icons.admin_panel_settings_rounded,
-                    color: Colors.purple,
-                    size: 30,
-                  ),
-                ),
-                
-                const SizedBox(height: 16),
-                
-                Text(
-                  'Phân Quyền Thành Viên',
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w700,
-                    color: theme.colorScheme.onSurface,
-                  ),
-                ),
-                
-                const SizedBox(height: 8),
-                
-                Text(
-                  'Chọn quyền cho ${member.name}',
-                  style: TextStyle(
-                    color: theme.colorScheme.onSurface.withOpacity(0.7),
-                  ),
-                ),
-                
-                const SizedBox(height: 24),
-                
-                // Danh sách quyền
-                Container(
-                  width: double.infinity,
-                  decoration: BoxDecoration(
-                    color: theme.cardColor,
-                    borderRadius: BorderRadius.circular(16),
-                    border: Border.all(
-                      color: theme.dividerColor.withOpacity(0.1),
-                    ),
-                  ),
-                  child: Column(
-                    children: [
-                      // Quyền Admin
-                      _buildRoleOption(
-                        context,
-                        value: 'Admin',
-                        title: 'Quản trị viên',
-                        description: 'Toàn quyền quản lý ngôi nhà',
-                        icon: Icons.admin_panel_settings_rounded,
-                        iconColor: Colors.purple,
-                        isSelected: selectedRole == 'Admin',
-                        onTap: () => setState(() => selectedRole = 'Admin'),
-                      ),
-                      
-                      const Divider(height: 1),
-                      
-                      // Quyền Member
-                      _buildRoleOption(
-                        context,
-                        value: 'Member',
-                        title: 'Thành viên',
-                        description: 'Quyền cơ bản, xem và điều khiển thiết bị',
-                        icon: Icons.person_rounded,
-                        iconColor: Colors.blue,
-                        isSelected: selectedRole == 'Member',
-                        onTap: () => setState(() => selectedRole = 'Member'),
-                      ),
-                      
-                      const Divider(height: 1),
-                      
-                      // Quyền Guest
-                      _buildRoleOption(
-                        context,
-                        value: 'Guest',
-                        title: 'Khách',
-                        description: 'Chỉ xem, không thể điều khiển thiết bị',
-                        icon: Icons.visibility_rounded,
-                        iconColor: Colors.green,
-                        isSelected: selectedRole == 'Guest',
-                        onTap: () => setState(() => selectedRole = 'Guest'),
-                      ),
-                    ],
-                  ),
-                ),
-                
-                const SizedBox(height: 24),
-                
-                // Nút hành động
-                Row(
-                  children: [
-                    Expanded(
-                      child: OutlinedButton(
-                        onPressed: () => Navigator.pop(context),
-                        style: OutlinedButton.styleFrom(
-                          foregroundColor: theme.colorScheme.onSurface,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                          side: BorderSide(
-                            color: theme.dividerColor,
-                          ),
-                        ),
-                        child: const Text('Hủy'),
-                      ),
-                    ),
-                    
-                    const SizedBox(width: 12),
-                    
-                    Expanded(
-                      child: ElevatedButton(
-                        onPressed: () {
-                          _updateMemberRole(member, selectedRole);
-                          Navigator.pop(context);
-                          
-                          // Hiển thị snackbar thông báo
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text('Đã cập nhật quyền cho ${member.name}'),
-                              backgroundColor: Colors.green,
-                              behavior: SnackBarBehavior.floating,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(12),
-                              ),
-                            ),
-                          );
-                        },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.purple,
-                          foregroundColor: Colors.white,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          padding: const EdgeInsets.symmetric(vertical: 12),
-                        ),
-                        child: const Text('Xác nhận'),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        );
-      },
-    ),
-  );
-}
-Widget _buildRoleOption(
-  BuildContext context, {
-  required String value,
-  required String title,
-  required String description,
-  required IconData icon,
-  required Color iconColor,
-  required bool isSelected,
-  required VoidCallback onTap,
-}) {
-  final theme = Theme.of(context);
-  
-  return InkWell(
-    onTap: onTap,
-    child: Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: isSelected ? theme.primaryColor.withOpacity(0.1) : Colors.transparent,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Row(
-        children: [
-          // Radio button
-          Container(
-            width: 20,
-            height: 20,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              border: Border.all(
-                color: isSelected ? theme.primaryColor : theme.dividerColor,
-                width: 2,
-              ),
-            ),
-            child: isSelected
-                ? Container(
-                    margin: const EdgeInsets.all(3),
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: theme.primaryColor,
-                    ),
-                  )
-                : null,
-          ),
-          
-          const SizedBox(width: 16),
-          
-          // Icon
-          Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              color: iconColor.withOpacity(0.1),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Icon(icon, color: iconColor, size: 20),
-          ),
-          
-          const SizedBox(width: 12),
-          
-          // Text content
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: TextStyle(
-                    fontWeight: FontWeight.w600,
-                    color: theme.colorScheme.onSurface,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  description,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: theme.colorScheme.onSurface.withOpacity(0.6),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ],
-      ),
-    ),
-  );
-}
+  void _updateMemberRole(String userId, HomeRole memberRole) async {
+    // TODO: Implement update member role logic
+    final UnifiedNotificationController notificationController =
+        Get.find<UnifiedNotificationController>();
+    await notificationController.updateMemberInHome(
+      userId,
+      memberRole,
+      _currentHome.id,
+    );
+  }
 
-void _updateMemberRole(_MemberInfo member, String newRole) {
-  // TODO: Implement update member role logic
-  print('Updating ${member.name} role to $newRole');
-  // Gọi API hoặc update Firestore ở đây
-}
   void _showRemoveMemberDialog(BuildContext context, _MemberInfo member) {
     final theme = Theme.of(context);
-    
+    final UnifiedNotificationController notificationController =
+        Get.find<UnifiedNotificationController>();
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -1574,16 +1710,22 @@ void _updateMemberRole(_MemberInfo member, String newRole) {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: Text("Hủy", style: TextStyle(color: theme.colorScheme.onSurface.withOpacity(0.7))),
+            child: Text(
+              "Hủy",
+              style: TextStyle(
+                color: theme.colorScheme.onSurface.withOpacity(0.7),
+              ),
+            ),
           ),
           ElevatedButton(
-            onPressed: () {
+            onPressed: () async {
+              await notificationController.removeUserFromHome(
+                _currentHome.id,
+                member.userId,
+              );
               Navigator.pop(context);
-              // Xóa thành viên
             },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red,
-            ),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
             child: Text("Xóa thành viên"),
           ),
         ],
@@ -1593,7 +1735,7 @@ void _updateMemberRole(_MemberInfo member, String newRole) {
 
   void _showDeleteHomeDialog(BuildContext context) {
     final theme = Theme.of(context);
-    
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -1618,7 +1760,9 @@ void _updateMemberRole(_MemberInfo member, String newRole) {
             onPressed: () => Navigator.pop(context),
             child: Text(
               "Hủy",
-              style: TextStyle(color: theme.colorScheme.onSurface.withOpacity(0.7)),
+              style: TextStyle(
+                color: theme.colorScheme.onSurface.withOpacity(0.7),
+              ),
             ),
           ),
           ElevatedButton(
@@ -1627,9 +1771,7 @@ void _updateMemberRole(_MemberInfo member, String newRole) {
               final deviceController = Get.put(DeviceController());
               await deviceController.deleteHome(_currentHome.id);
             },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red,
-            ),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
             child: Text("Xóa nhà"),
           ),
         ],
@@ -1643,7 +1785,7 @@ class _MemberInfo {
   final String userId;
   final String name;
   final String email;
-  final String role;
+  final HomeRole role;
   final String? joinedAt;
   final bool isOwner;
   final String? avatar;
@@ -1659,14 +1801,15 @@ class _MemberInfo {
   });
 
   // Factory method để chuyển từ HomeMember sang _MemberInfo
-  factory _MemberInfo.fromHomeMember(HomeMember member, User userInfo)   {
-
+  factory _MemberInfo.fromHomeMember(HomeMember member, User userInfo) {
     return _MemberInfo(
-      joinedAt: DateFormat('HH:mm - dd/MM/yyyy').format(member.joinedAt ?? DateTime.now()),
+      joinedAt: DateFormat(
+        'HH:mm - dd/MM/yyyy',
+      ).format(member.joinedAt ?? DateTime.now()),
       userId: member.userId,
       name: userInfo.name ?? "Unknow", // Sẽ được fill từ FutureBuilder
       email: userInfo.email!, // Sẽ được fill từ FutureBuilder
-      role: member.role.displayName,
+      role: member.role,
       isOwner: member.isOwner,
       avatar: userInfo.profileImage,
     );

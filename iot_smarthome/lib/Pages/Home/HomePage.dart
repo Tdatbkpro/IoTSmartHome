@@ -5,13 +5,21 @@ import 'dart:math';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/legacy.dart';
 import 'package:geocoding/geocoding.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart';
 import 'package:image_gallery_saver_plus/image_gallery_saver_plus.dart';
+import 'package:intl/intl.dart';
 import 'package:iot_smarthome/Pages/Home/Widget/ConfigHome.dart';
 import 'package:iot_smarthome/Pages/Home/Widget/CreateQrDevice.dart';
+import 'package:iot_smarthome/Pages/Home/Widget/EnergyConsumptionPage.dart';
+import 'package:iot_smarthome/Pages/Home/Widget/WeatherInfo.dart';
 import 'package:iot_smarthome/Pages/Notification/NotificationsPage.dart';
+import 'package:iot_smarthome/Providers/AuthProvider.dart';
+import 'package:iot_smarthome/Providers/Location&WeatherProvider.dart';
+import 'package:iot_smarthome/Services/WeatherService.dart';
 import 'package:permission_handler/permission_handler.dart';
 import 'package:animations/animations.dart';
 import 'package:convex_bottom_bar/convex_bottom_bar.dart';
@@ -47,33 +55,51 @@ import 'package:iot_smarthome/Controllers/Auth.dart';
 import 'package:kf_drawer/kf_drawer.dart';
 
 // ---------------- Home Dashboard ----------------
-class HomeDashboard extends StatefulWidget {
+class HomeDashboard extends ConsumerStatefulWidget {
   const HomeDashboard({super.key});
 
   @override
-  State<HomeDashboard> createState() => _HomeDashboardState();
+  ConsumerState<HomeDashboard> createState() => _HomeDashboardState();
 }
 
-class _HomeDashboardState extends State<HomeDashboard> {
+class _HomeDashboardState extends ConsumerState<HomeDashboard> {
   final authController = Get.put(AuthController());
   final deviceController = Get.put(DeviceController());
   final firebaseUser = FirebaseAuth.instance.currentUser;
+  final showPersistentHeaderProvider = StateProvider<bool>((ref) => false);
 
 
   @override
   void initState() {
     super.initState();
     if (firebaseUser != null) {
-      deviceController.streamHomes(firebaseUser!.uid);
+      deviceController.streamAllHomes(firebaseUser!.uid);
     }
+
+    
   }
 
  Widget _buildBackground() {
   return ImageFiltered(
     imageFilter: ui.ImageFilter.blur(sigmaX: 3, sigmaY: 3),
-    child: Image.asset(
-      "assets/images/banner_homepage.png",
-      fit: BoxFit.cover,
+    child: Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            Colors.blue.shade800,
+            Colors.blue.shade600,
+            Colors.lightBlue.shade400,
+          ],
+        ),
+      ),
+      child: Image.asset(
+        "assets/images/banner_homepage.png",
+        fit: BoxFit.cover,
+        color: Colors.black.withOpacity(0.3),
+        colorBlendMode: BlendMode.darken,
+      ),
     ),
   );
 }
@@ -81,56 +107,66 @@ class _HomeDashboardState extends State<HomeDashboard> {
 Widget _buildContent(double percent, double avatarSize, double topPadding, double offsetX, double offsetY) {
   return Padding(
     padding: EdgeInsets.fromLTRB(16, topPadding, 16, 16),
-    child: StreamBuilder<User?>(
-      stream: firebaseUser != null
-          ? authController.getUserByIdStream(firebaseUser!.uid)
-          : const Stream.empty(),
-      builder: (context, snapshot) {
-        final user = snapshot.data;
-        final userName = _getUserName(user);
+    child: Consumer(
+      builder: (context, ref, child) {
+        final userAsync = ref.watch(currentUserDataProvider);
+        final addressAsync = ref.watch(currentAddressProvider);
+        final weatherAsync = ref.watch(weatherDataProvider);
 
-        return Row(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            // User info section
-            Expanded(
-              child: Transform.translate(
-                offset: Offset(offsetX, offsetY),
-                child: _buildUserInfo(percent, avatarSize, userName, user),
-              ),
-            ),
-
-            // QR Code button
-            _buildQRButton(),
-          ],
+        return userAsync.when(
+          loading: () => _buildUserInfo(percent, avatarSize, "Loading...", null, addressAsync, weatherAsync,ref),
+          error: (error, stack) => _buildUserInfo(percent, avatarSize, "Guest", null, addressAsync, weatherAsync,ref),
+          data: (user) {
+            final userName = _getUserName(user);
+            return Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Expanded(
+                  child: Transform.translate(
+                    offset: Offset(offsetX, offsetY),
+                    child: _buildUserInfo(percent, avatarSize, userName, user, addressAsync, weatherAsync,ref),
+                  ),
+                ),
+                _buildQRButton(percent),
+              ],
+            );
+          },
         );
       },
     ),
   );
 }
-
-Widget _buildUserInfo(double percent, double avatarSize, String userName, User? user) {
+Widget _buildUserInfo(
+  double percent, 
+  double avatarSize, 
+  String userName, 
+  User? user, 
+  AsyncValue<String> addressAsync,
+  AsyncValue<WeatherData> weatherAsync,
+  WidgetRef ref
+) {
   return Row(
     children: [
       CircleAvatar(
         radius: avatarSize / 2,
         backgroundImage: _getUserImage(user),
       ),
-      const SizedBox(width: 10),
+      const SizedBox(width: 12),
       Expanded(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
+            // Greeting and user name
             Text(
-              "Welcome 👋",
+              _getGreeting(),
               style: TextStyle(
                 fontSize: 16 * percent.clamp(0.8, 1.0),
                 color: Colors.white70,
                 fontWeight: FontWeight.w500,
               ),
             ),
-            const SizedBox(height: 4),
+            const SizedBox(height: 2),
             Text(
               userName,
               style: TextStyle(
@@ -142,6 +178,17 @@ Widget _buildUserInfo(double percent, double avatarSize, String userName, User? 
               overflow: TextOverflow.ellipsis,
               maxLines: 1,
             ),
+            const SizedBox(height: 8),
+            
+            // Location and weather info
+           if (percent > 0.9) ...[
+             _buildLocationWeatherInfo(percent, addressAsync, weatherAsync,ref),
+            
+            const SizedBox(height: 4),
+            
+            // Time info
+            _buildTimeInfo(percent),
+           ]
           ],
         ),
       ),
@@ -149,25 +196,148 @@ Widget _buildUserInfo(double percent, double avatarSize, String userName, User? 
   );
 }
 
-Widget _buildQRButton() {
+Widget _buildLocationWeatherInfo(
+  double percent, 
+  AsyncValue<String> addressAsync,
+  AsyncValue<WeatherData> weatherAsync,
+  WidgetRef ref
+) {
+  return Row(
+    children: [
+      Icon(Icons.location_on, size: 14 * percent, color: Colors.white70),
+      const SizedBox(width: 4),
+      Expanded(
+        child: addressAsync.when(
+          loading: () => Text(
+            "Đang lấy vị trí...",
+            style: TextStyle(
+              fontSize: 12 * percent.clamp(0.7, 1.0),
+              color: Colors.white70,
+            ),
+            overflow: TextOverflow.ellipsis,
+          ),
+          error: (error, stack) => Text(
+            "Không thể lấy vị trí",
+            style: TextStyle(
+              fontSize: 12 * percent.clamp(0.7, 1.0),
+              color: Colors.white70,
+            ),
+            overflow: TextOverflow.ellipsis,
+          ),
+          data: (address) => Text(
+            address,
+            style: TextStyle(
+              fontSize: 12 * percent.clamp(0.7, 1.0),
+              color: Colors.white70,
+              fontWeight: FontWeight.w500,
+            ),
+            overflow: TextOverflow.ellipsis,
+            maxLines: 1,
+          ),
+        ),
+      ),
+      const SizedBox(width: 8),
+      
+      // Weather info
+      weatherAsync.when(
+        loading: () => _buildWeatherItem("--°", "☀️", "--%", percent),
+        error: (error, stack) => _buildWeatherItem("--°", "☀️", "--%", percent),
+        data: (weather) {
+          final weatherService = ref.read(weatherServiceProvider);
+          final icon = weatherService.getWeatherIcon(weather.condition);
+          return _buildWeatherItem(
+            "${weather.temperature.toStringAsFixed(0)}°",
+            icon,
+            "${weather.humidity}%",
+            percent,
+          );
+        },
+      ),
+    ],
+  );
+}
+
+Widget _buildWeatherItem(String temp, String icon, String humidity, double percent) {
+  return Row(
+    children: [
+      Text(
+        temp,
+        style: TextStyle(
+          fontSize: 14 * percent.clamp(0.7, 1.0),
+          color: Colors.white,
+          fontWeight: FontWeight.bold,
+        ),
+      ),
+      const SizedBox(width: 2),
+      Text(
+        icon,
+        style: TextStyle(fontSize: 12 * percent.clamp(0.7, 1.0)),
+      ),
+      const SizedBox(width: 6),
+      Icon(Icons.water_drop, size: 12 * percent, color: Colors.lightBlue.shade200),
+      const SizedBox(width: 2),
+      Text(
+        humidity,
+        style: TextStyle(
+          fontSize: 12 * percent.clamp(0.7, 1.0),
+          color: Colors.white70,
+        ),
+      ),
+    ],
+  );
+}
+
+Widget _buildTimeInfo(double percent) {
+  return StreamBuilder<DateTime>(
+    stream: Stream.periodic(const Duration(seconds: 1), (i) => DateTime.now()),
+    builder: (context, snapshot) {
+      final now = snapshot.data ?? DateTime.now();
+      
+      return Row(
+        children: [
+          Icon(Icons.access_time, size: 12 * percent, color: Colors.white70),
+          const SizedBox(width: 4),
+          Text(
+            DateFormat('HH:mm • dd/MM/yyyy').format(now),
+            style: TextStyle(
+              fontSize: 12 * percent.clamp(0.7, 1.0),
+              color: Colors.white70,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
+      );
+    },
+  );
+}
+
+Widget _buildQRButton(double percent) {
+  final size = 56 * percent.clamp(0.7, 1.0);
+
   return Container(
+    width: size,
+    height: size,
     decoration: BoxDecoration(
       color: Colors.white.withOpacity(0.2),
       shape: BoxShape.circle,
+      border: Border.all(color: Colors.white.withOpacity(0.3), width: 1.5),
     ),
     child: IconButton(
-      icon: const Icon(Icons.qr_code_scanner_outlined, color: Colors.white, size: 24),
-      onPressed: () => Get.toNamed("/scan"),
+      icon: Icon(
+        Icons.qr_code_scanner_outlined,
+        color: Colors.white,
+        size: 24 * percent.clamp(0.7, 1.0),
+      ),
+      onPressed: () => Navigator.pushNamed(context, "/scan"),
     ),
   );
 }
 
-// ========================= Helper methods =========================
-
+// Helper methods giữ nguyên
 String _getUserName(User? user) {
   return user?.name ??
-      firebaseUser?.displayName ??
-      firebaseUser?.email ??
+      FirebaseAuth.instance.currentUser?.displayName ??
+      FirebaseAuth.instance.currentUser?.email ??
       "Guest";
 }
 
@@ -177,117 +347,199 @@ ImageProvider _getUserImage(User? user) {
   }
   return const AssetImage("assets/images/default_avatar.png");
 }
+
+String _getGreeting() {
+  final hour = DateTime.now().hour;
+  
+  if (hour < 12) {
+    return "Chào buổi sáng 🌞";
+  } else if (hour < 18) {
+    return "Chào buổi chiều ☀️";
+  } else {
+    return "Chào buổi tối 🌙";
+  }
+}
+
+
   @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-    
-    body: Obx(() {
-      final homes = deviceController.homes;
-
-      return CustomScrollView(
-        slivers: [
-            SliverAppBar(
-            pinned: true,
-            expandedHeight: 200,
-            leading: IconButton(
-              icon: const Icon(Icons.menu, color: Colors.white),
-              onPressed: () => KFDrawer.of(context)?.toggle(),
-            ),
-            flexibleSpace: LayoutBuilder(
-              builder: (context, constraints) {
-                final percent = (constraints.maxHeight - kToolbarHeight) /
-                    (200 - kToolbarHeight);
-
-                final avatarSize = 56 * percent.clamp(0.5, 1.0);
-                final topPadding = 50 * percent.clamp(0.0, 1.0);
-                final offsetX = (1 - percent) * 50;
-                final offsetY = (1 - percent) * 25;
-
-                return Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    // Nền mờ
-                    _buildBackground(),
-
-                    // Overlay đen mờ
-                    Container(color: Colors.black.withOpacity(0.3)),
-
-                    // Nội dung chính
-                    _buildContent(percent, avatarSize, topPadding, offsetX, offsetY),
-                  ],
-                );
-              },
-            ),
+Widget build(BuildContext context) {
+  return Scaffold(
+    body: CustomScrollView(
+      slivers: [
+        // SliverAppBar không cần nằm trong Obx
+        SliverAppBar(
+          pinned: true,
+          expandedHeight: 200,
+          leading: IconButton(
+            icon: const Icon(Icons.menu, color: Colors.white),
+            onPressed: () => KFDrawer.of(context)?.toggle(),
           ),
+          flexibleSpace: LayoutBuilder(
+            builder: (context, constraints) {
+              final percent = (constraints.maxHeight - kToolbarHeight) /
+                  (200 - kToolbarHeight);
+              // SỬA: percent < 0.9 thì hiện, >= 0.9 thì ẩn
+              final shouldShowHeader = percent < 0.9;
+              
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                ref.read(showPersistentHeaderProvider.notifier).state = shouldShowHeader;
+              });
+              
+              final avatarSize = 56 * percent.clamp(0.5, 1.0);
+              final topPadding = 50 * percent.clamp(0.0, 1.0);
+              final offsetX = (1 - percent) * 50;
+              final offsetY = (1 - percent) * 25;
 
-
-          // Body
-          homes.isEmpty
-          ? const SliverToBoxAdapter(
-              child: Center(child: Text("No homes found")),
-            )
-          : SliverList(
-              delegate: SliverChildBuilderDelegate(
-                (context, index) {
-                  final home = homes[index];
-                  return Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
-                    child: _buildHomeSection(home),
-                  );
-                },
-                childCount: homes.length,
-              ),
-            ),
-
-
-          // --- KHU VỰC PHÒNG ĐƯỢC CHIA SẺ ---
-      SliverToBoxAdapter(
-        child: StreamBuilder<List<RoomModel>>(
-          stream: deviceController.streamSharedRooms(),
-          builder: (context, snapshot) {
-            if (!snapshot.hasData) {
-              return const Center(child: CircularProgressIndicator());
-            }
-
-            final sharedRooms = snapshot.data!;
-            if (sharedRooms.isEmpty) return const SizedBox.shrink();
-
-            return Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+              return Stack(
+                fit: StackFit.expand,
                 children: [
-                  const Divider(height: 40),
-                  const Text(
-                    "🔗 Phòng được chia sẻ với tôi",
-                    style: TextStyle(
-                      fontSize: 22,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  ...sharedRooms.map(
-                    (room) => _buildSharedRoomCard(room, room.hoomId!),
-                  ),
+                  _buildBackground(),
+                  Container(color: Colors.black.withOpacity(0.3)),
+                  _buildContent(percent, avatarSize, topPadding, offsetX, offsetY),
                 ],
-              ),
+              );
+            },
+          ),
+        ),
+        
+        // Weather Header - Consumer riêng
+        Consumer(
+          builder: (context, ref, child) {
+            final isShowPersistentHeader = ref.watch(showPersistentHeaderProvider);
+            
+            return SliverAnimatedOpacity(
+              duration: const Duration(milliseconds: 300),
+              opacity: isShowPersistentHeader ? 1.0 : 0.0,
+              sliver: isShowPersistentHeader
+                  ? SliverPersistentHeader(
+                      pinned: true,
+                      delegate: WeatherInfoHeaderDelegate(),
+                    )
+                  : const SliverToBoxAdapter(child: SizedBox.shrink()),
             );
           },
         ),
-      ),
-        ],
-      );
-    }),
-floatingActionButton: FloatingActionButton(onPressed: () {
-  AddHomePage(isAddHome: true).show(context);
-} ,
-  child: Icon(Icons.add_rounded),
-)
-    );
-  }
+        
+        // Homes Content - Obx riêng chỉ cho phần homes
+        Obx(() {
+          final homes = deviceController.homes;
+          final joinedHomes = deviceController.homeJoineds;
+          
+          if (homes.isEmpty && joinedHomes.isEmpty) {
+            return const SliverToBoxAdapter(
+              child: Center(
+                child: Padding(
+                  padding: EdgeInsets.all(32.0),
+                  child: Column(
+                    children: [
+                      Icon(Icons.home_outlined, size: 64, color: Colors.grey),
+                      SizedBox(height: 16),
+                      Text(
+                        "Chưa có home nào",
+                        style: TextStyle(fontSize: 16, color: Colors.grey),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          }
+          
+          return SliverList(
+            delegate: SliverChildListDelegate([
+              // My Homes Section
+              if (homes.isNotEmpty) ...[
+                _buildSectionHeader(
+                  title: "Home của tôi",
+                  icon: Icons.home_outlined,
+                ),
+                ...homes.map((home) => Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                  child: _buildHomeSection(home),
+                )).toList(),
+              ],
+              
+              // Joined Homes Section
+              if (joinedHomes.isNotEmpty) ...[
+                _buildSectionHeader(
+                  title: "Home đã tham gia",
+                  icon: Icons.group_outlined,
+                ),
+                ...joinedHomes.map((joinedHome) => Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
+                  child: _buildHomeSection(joinedHome),
+                )).toList(),
+              ],
+            ]),
+          );
+        }),
 
-  // ==================== UI HOME ====================
+        // Shared Rooms Section - Sliver riêng
+        SliverToBoxAdapter(
+          child: StreamBuilder<List<RoomModel>>(
+            stream: deviceController.streamSharedRooms(),
+            builder: (context, snapshot) {
+              if (!snapshot.hasData) {
+                return const Center(child: CircularProgressIndicator());
+              }
 
+              final sharedRooms = snapshot.data!;
+              if (sharedRooms.isEmpty) return const SizedBox.shrink();
+
+              return Padding(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Divider(height: 40),
+                    const Text(
+                      "🔗 Phòng được chia sẻ với tôi",
+                      style: TextStyle(
+                        fontSize: 22,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    ...sharedRooms.map(
+                      (room) => _buildSharedRoomCard(room, room.hoomId!),
+                    ),
+                  ],
+                ),
+              );
+            },
+          ),
+        ),
+      ],
+    ),
+    floatingActionButton: FloatingActionButton(
+      onPressed: () {
+        AddHomePage(isAddHome: true).show(context);
+      },
+      child: const Icon(Icons.add_rounded),
+    ),
+  );
+}
+
+// Widget cho section header
+Widget _buildSectionHeader({required String title, required IconData icon}) {
+  return Padding(
+    padding: const EdgeInsets.fromLTRB(16, 20, 16, 12),
+    child: Row(
+      children: [
+        Icon(icon, size: 20, color: Colors.blue),
+        const SizedBox(width: 8),
+        Text(
+          title,
+          style: const TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.w600,
+            color: Colors.black87,
+          ),
+        ),
+      ],
+    ),
+  );
+}
 Future<void> _shareRoom(BuildContext context, HomeModel home, String roomId) async {
   final expireTime = DateTime.now().add(const Duration(minutes: 15));
 
@@ -935,7 +1187,53 @@ Future<void> _shareRoom(BuildContext context, HomeModel home, String roomId) asy
 
 
 
+  Future<void> _openEnergyConsumptionPage(BuildContext context, HomeModel home, RoomModel room) async {
+  try {
+    // Hiển thị loading
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(
+        child: CircularProgressIndicator(),
+      ),
+    );
 
+    // 🆕 LẤY DEVICE STATUS MAP CHO PHÒNG NÀY
+    final Map<String, DeviceStatus> deviceStatusMap = await deviceController.getDeviceStatusMapForRoom(home.id, room.id, room.devices);
+
+    // Đóng loading
+    if (context.mounted) {
+      Navigator.of(context).pop(); // Đóng dialog loading
+    }
+
+    // Mở EnergyConsumptionPage
+    if (context.mounted) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => EnergyConsumptionPage(
+            room: room,
+            devices: room.devices,
+            deviceStatusMap: deviceStatusMap,
+          ),
+        ),
+      );
+    }
+  } catch (e) {
+    // Đóng loading nếu có lỗi
+    if (context.mounted) {
+      Navigator.of(context).pop(); // Đóng dialog loading
+      
+      // Hiển thị lỗi
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Lỗi khi tải dữ liệu: $e'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
+  }
+}
   // ==================== UI ROOM ====================
   Widget _buildRoomSection(HomeModel home, RoomModel room) {
     String getRoomImage(String type) {
@@ -1005,15 +1303,18 @@ Future<void> _shareRoom(BuildContext context, HomeModel home, String roomId) asy
                   ),
                 ),
                 PopupMenuButton<String>(
-                  onSelected: (val) {
+                  onSelected: (val)  {
                     if (val == "edit") EditRoomDialog.show(context, home.id, room);
-
+                    if (val == "analys")  {
+                     _openEnergyConsumptionPage(context, home, room);
+                    }
                     if (val == "delete") deviceController.deleteRoom(home.id, room.id);
                     if (val == "share") _shareRoom(context,home, room.id);
                   },
                   itemBuilder: (context) => const [
                     PopupMenuItem(value: "edit", child: Text("Sửa phòng")),
                     PopupMenuItem(value: "delete", child: Text("Xóa")),
+                    PopupMenuItem(value: "analys", child: Text("Phân tích")),
                     PopupMenuItem(value: "share", child: Text("Chia sẻ")),
                   ],
                 ),
@@ -1210,12 +1511,22 @@ Future<void> _shareRoom(BuildContext context, HomeModel home, String roomId) asy
                         if (value == "delete") {
                           await deviceController.deleteDevice(homeId, roomId, device.id);
                         }
+                        if (value == "edit") {
+                          DialogUtils.showAddDeviceDialog(context, homeId, roomId,editDevice: true,device: device);
+                        }
                       },
                       itemBuilder: (context) => [
                         PopupMenuItem(
                           value: "delete",
                           child: Text(
                             "Xóa",
+                            style: TextStyle(fontSize: isSmallDevice ? 12 : 14),
+                          ),
+                        ),
+                        PopupMenuItem(
+                          value: "edit",
+                          child: Text(
+                            "Sửa",
                             style: TextStyle(fontSize: isSmallDevice ? 12 : 14),
                           ),
                         ),
@@ -1240,14 +1551,10 @@ Future<void> _shareRoom(BuildContext context, HomeModel home, String roomId) asy
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
-
               SizedBox(height: isVeryNarrow ? 2 : (isSmallDevice ? 3 : 5)),
-
               // --- Hiển thị thông tin theo loại thiết bị ---
               _buildDeviceSpecificInfo(device, status, isVeryNarrow, isSmallDevice),
-
               SizedBox(height: isVeryNarrow ? 2 : (isSmallDevice ? 3 : 5)),
-
               // --- Control (Switch/Slider/Value) ---
               _buildDeviceControl(homeId, roomId, device, status, isVeryNarrow, isSmallDevice),
             ],
@@ -1311,13 +1618,35 @@ Widget _buildDeviceSpecificInfo(Device device, DeviceStatus status, bool isVeryN
     case "Temperature Humidity Sensor":
       return Column(
         children: [
-          Text(
-            "${status.temperature?.toStringAsFixed(1) ?? '--'}°C",
-            style: textStyle.copyWith(fontWeight: FontWeight.w600),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.thermostat,
+                size: 12,
+                color: Colors.redAccent.shade200,
+              ),
+              SizedBox(width: 4,),
+              Text(
+                " ${status.temperature?.toStringAsFixed(1) ?? '--'}°C",
+                style: textStyle.copyWith(fontWeight: FontWeight.w600),
+              ),
+            ],
           ),
-          Text(
-            "${status.humidity?.toStringAsFixed(0) ?? '--'}%",
-            style: textStyle,
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.water_drop,
+                size: 12,
+                color: Colors.lightBlue.shade200,
+              ),
+              SizedBox(width: 4,),
+              Text(
+                "${status.humidity?.toStringAsFixed(0) ?? '--'}%",
+                style: textStyle,
+              ),
+            ],
           ),
         ],
       );
@@ -1405,13 +1734,16 @@ Widget _buildDeviceControl(String homeId, String roomId, Device device, DeviceSt
             value: status.status,
             activeColor: const Color.fromARGB(255, 99, 207, 69),
             inactiveThumbColor: const Color.fromARGB(255, 99, 207, 69),
-            onChanged: (val) {
+            onChanged: (val) async {
+              final currentDeviceStatus = await deviceController.getFutureDeviceStatus(homeId, roomId, device.id);
+              final updatedDeviceStatus = currentDeviceStatus.updateDeviceStatus(val);
               deviceController.updateStatus(
                 homeId, 
                 roomId, 
                 device.id,
-                DeviceStatus(status: val)
+               updatedDeviceStatus
               );
+              
             },
           ),
         ),
@@ -1716,7 +2048,7 @@ Future<void> handleLeaveRoom(BuildContext context, RoomModel room, String homeId
                   if (snapshot.connectionState == ConnectionState.waiting) {
                     return const Center(
                       child: Padding(
-                        padding: EdgeInsets.all(8.0),
+                        padding: EdgeInsets.all(6.0),
                         child: CircularProgressIndicator(),
                       ),
                     );

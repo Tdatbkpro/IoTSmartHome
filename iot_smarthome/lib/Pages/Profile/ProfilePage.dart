@@ -50,7 +50,7 @@ class ProfilePage extends StatelessWidget {
       ),
       body: Obx(() {
         final homes = deviceController.homes;
-
+        final joinedHomes = deviceController.homeJoineds;
         return SingleChildScrollView(
           padding: const EdgeInsets.all(0),
           child: Column(
@@ -237,7 +237,7 @@ class ProfilePage extends StatelessWidget {
                         ),
                         const SizedBox(width: 8),
                         Text(
-                          "NHÀ ĐANG ĐIỀU KHIỂN",
+                          "NHÀ CỦA BẠN",
                           style: TextStyle(
                             fontSize: 13,
                             fontWeight: FontWeight.w600,
@@ -258,6 +258,38 @@ class ProfilePage extends StatelessWidget {
                             separatorBuilder: (context, index) => const SizedBox(height: 12),
                             itemBuilder: (context, index) {
                               final home = homes[index];
+                              return _buildHomeCard(context, home);
+                            },
+                          ),
+                    const SizedBox(height: 16,),
+                    Row(
+                      children: [
+                        Icon(
+                          Icons.home_outlined,
+                          color: theme.primaryColor,
+                          size: 20,
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          "NHÀ ĐƯỢC ĐIỀU KHIỂN",
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: theme.colorScheme.onSurface.withOpacity(0.7),
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                      ],
+                    ),
+                    joinedHomes.isEmpty
+                        ? SizedBox.shrink()
+                        : ListView.separated(
+                            shrinkWrap: true,
+                            physics: const NeverScrollableScrollPhysics(),
+                            itemCount: joinedHomes.length,
+                            separatorBuilder: (context, index) => const SizedBox(height: 12),
+                            itemBuilder: (context, index) {
+                              final home = joinedHomes[index];
                               return _buildHomeCard(context, home);
                             },
                           ),

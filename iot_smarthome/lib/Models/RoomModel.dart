@@ -1,4 +1,6 @@
 
+import 'dart:ffi';
+
 /// RoomModel (Firestore)
 class RoomModel {
   final String id;
@@ -64,12 +66,14 @@ class RoomModel {
 class Device {
   final String id;
   final String? name;
+  final double? power;
   final String? type;
   final String? roomId;
 
-  Device({
+  Device( {
     required this.id,
     this.name,
+    this.power,
     this.type,
     this.roomId,
   });
@@ -80,16 +84,35 @@ class Device {
       name: map["name"] ?? "Unknown",
       type: map["type"],
       roomId: roomId,
+      power: map["power"] ?? 0.0
     );
   }
-
+  
   Map<String, dynamic> toMap() {
     return {
       "id": id,
       "name": name,
       "type": type,
       "roomId": roomId,
+      "power" : power
     };
   }
+
+  Device copyWith({
+  String? id,
+  String? name,
+  double? power,
+  String? type,
+  String? roomId,
+}) {
+  return Device(
+    id: id ?? this.id,
+    name: name ?? this.name,
+    power: power ?? this.power,
+    type: type ?? this.type,
+    roomId: roomId ?? this.roomId,
+  );
+}
+
 }
 
