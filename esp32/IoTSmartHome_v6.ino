@@ -781,10 +781,10 @@ bool connectToWiFi(const char* ssid, const char* password) {
     
     if (status == WL_CONNECTED) {
       connectionSuccess = true;
-      Serial.println(" - ✅ CONNECTED!");
+      Serial.println(" - CONNECTED!");
       break;
     } else if (status == WL_CONNECT_FAILED || status == WL_NO_SSID_AVAIL) {
-      Serial.printf(" - ❌ Connection failed (status: %d)\n", status);
+      Serial.printf(" -  Connection failed (status: %d)\n", status);
       break;
     }
     
@@ -793,7 +793,7 @@ bool connectToWiFi(const char* ssid, const char* password) {
   }
   
   if (connectionSuccess) {
-    Serial.println("\n🎉 WiFi connected successfully!");
+    Serial.println("\nWiFi connected successfully!");
     Serial.println("📡 IP Address: " + WiFi.localIP().toString());
     
     deviceProvisioned = true;
@@ -801,7 +801,7 @@ bool connectToWiFi(const char* ssid, const char* password) {
     
     return true;
   } else {
-    Serial.println("\n❌ WiFi connection failed after 30 attempts");
+    Serial.println("\n WiFi connection failed after 30 attempts");
     
     WiFi.disconnect();
     delay(1000);
@@ -918,7 +918,7 @@ void publishTrashStatus() {
   serializeJson(doc, buffer);
   
   if (client.publish(trashStatusTopic.c_str(), buffer, true)) {
-    Serial.printf("📤 Trash status sent: %s => %s\n", trashStatusTopic.c_str(), buffer);
+    Serial.printf(" Trash status sent: %s => %s\n", trashStatusTopic.c_str(), buffer);
   }
 }
 
@@ -987,7 +987,7 @@ void initRFID() {
   SPI.begin();
   mfrc522.PCD_Init();
   delay(4);
-  Serial.println("✅ RFID module initialized");
+  Serial.println(" RFID module initialized");
 }
 
 String readRFID() {
@@ -1035,7 +1035,7 @@ void handleRFID() {
     if (now - rfidLockTime > RFID_LOCK_DURATION) {
       rfidLocked = false;
       failedAttempts = 0;
-      Serial.println("🔓 RFID unlocked after timeout");
+      Serial.println(" RFID unlocked after timeout");
     }
     return;
   }
@@ -1055,7 +1055,7 @@ void handleRFID() {
           // Chuyển sang chế độ manual và mở thùng rác        
            controlGate(true);
           functionStr = "OPEN";
-          Serial.println("🎫 RFID Card: " + cardUID + " - ✅ MỞ Cửa");
+          Serial.println(" RFID Card: " + cardUID + " - MỞ Cửa");
           publishRFIDStatus(true, cardUID, functionStr);
           startBlink(1); // Xanh lá cây
         } else if (cardFunction == 2) { // Thẻ đóng
@@ -1184,7 +1184,7 @@ void controlLEDBasedOnRFIDStatus() {
   if (rfidFirebaseStatus) {
     // Status = true: LED xanh nước biển (0, 0, 255)
     setRGBColor(0, 0, 255);
-    Serial.println("💙 LED: Xanh nước biển (RFID Status = TRUE)");
+    Serial.println(" LED: Xanh nước biển (RFID Status = TRUE)");
   } else {
     // Status = false: LED đỏ (255, 0, 0)
     setRGBColor(255, 0, 0);
@@ -1258,7 +1258,7 @@ void handleLED() {
 
 // ========== AP MODE FUNCTIONS ==========
 void setupAPMode() {
-  Serial.println("\n📡 Setting up AP Mode...");
+  Serial.println("\n Setting up AP Mode...");
   
   WiFi.mode(WIFI_AP);
   delay(100);
@@ -1472,7 +1472,7 @@ void callback(char* topic, byte* payload, unsigned int length) {
       bool newStatus = doc["status"] | false;
       rfidFirebaseStatus = newStatus;
       
-      Serial.printf("🎯 RFID STATUS UPDATE FROM FIREBASE: %s\n", 
+      Serial.printf(" RFID STATUS UPDATE FROM FIREBASE: %s\n", 
                     rfidFirebaseStatus ? "TRUE (Blue)" : "FALSE (Red)");
       
       // Cập nhật LED ngay lập tức
@@ -1735,7 +1735,7 @@ void setup() {
   config.signer.tokens.legacy_token = "aBF2aZ32nJ5qeAtxANlZ51OeVKYbMfcpzGgAnZmR";
   Firebase.begin(&config, &auth);
   
-  Serial.println("🔄 Setup completed");
+  Serial.println(" Setup completed");
   
   // Hiển thị thông tin thẻ RFID hợp lệ
   Serial.println("\n RFID Cards Configured:");
