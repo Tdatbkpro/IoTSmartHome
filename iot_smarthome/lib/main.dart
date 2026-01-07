@@ -52,7 +52,6 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
     print("🚫 Không có user đăng nhập");
     return;
   }
-
   // 🚨 GỬI CẢNH BÁO ĐẾN TELEGRAM (chỉ cho device alerts)
   final notificationType = message.data['type'];
   if (notificationType == 'deviceAlert') {
@@ -146,6 +145,7 @@ Future<void> _firebaseMessagingBackgroundHandler(RemoteMessage message) async {
         'fromUserId': message.data['fromUserId'],
         'deviceId': message.data['deviceId'],
         'notificationId': notificationId.toString(),
+        'messageId': message.messageId ?? notificationId.toString(),
       },
     ),
     actionButtons: actionButtons,
@@ -433,6 +433,13 @@ Future<void> onActionReceivedMethod(ReceivedAction receivedAction) async {
     rawPayload.entries.where((e) => e.value != null)
       .map((e) => MapEntry(e.key, e.value!))
   );
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+  
+  // KHỞI TẠO SHAREDPREFERENCES
+  final prefs = await SharedPreferences.getInstance();
+
+  Get.put(UnifiedNotificationController(), permanent: true);
+  Get.put(InvitationService(), permanent: true);
 
   final buttonKey = receivedAction.buttonKeyPressed;
   final notificationType = payload['type'];
@@ -442,12 +449,17 @@ Future<void> onActionReceivedMethod(ReceivedAction receivedAction) async {
   print("🎯 Notification type: $notificationType");
   print("🎯 Payload: $payload");
 
-  // 🎯 Kiểm tra user ID
-  final currentUserId = FirebaseAuth.instance.currentUser?.uid;
+  final currentUserId = prefs.getString('current_user_id');
   if (userId != null && currentUserId != null && userId != currentUserId) {
     print("🚫 Action không dành cho user hiện tại");
     return;
   }
+  // 🎯 Kiểm tra user ID
+  // final currentUserId = FirebaseAuth.instance.currentUser?.uid;
+  // if (userId != null && currentUserId != null && userId != currentUserId) {
+  //   print("🚫 Action không dành cho user hiện tại");
+  //   return;
+  // }
 
   // 🎯 Xử lý action theo loại notification
   switch (notificationType) {
@@ -469,13 +481,18 @@ Future<void> onActionReceivedMethod(ReceivedAction receivedAction) async {
 /// 🎯 Xử lý action cho invitation
 void _handleInvitationAction(String? buttonKey, Map<String, String> payload) async {
   final invitationId = payload['invitationId'];
+
+  if (invitationId == null) {
+    print("❌ Không có invitationId trong payload");
+    return;
+  }
   final notificationController = Get.find<UnifiedNotificationController>();
   
   if (buttonKey == 'accept') {
     print("✅ User chấp nhận lời mời: $invitationId");
     
     try {
-      await notificationController.respondToInvitation(invitationId!, 'accepted');
+      await notificationController.respondToInvitation(invitationId, 'accepted');
       
       // Hiển thị thông báo thành công
       AwesomeNotifications().createNotification(
@@ -495,7 +512,7 @@ void _handleInvitationAction(String? buttonKey, Map<String, String> payload) asy
     print("❌ User từ chối lời mời: $invitationId");
     
     try {
-      await notificationController.respondToInvitation(invitationId!, 'rejected');
+      await notificationController.respondToInvitation(invitationId, 'rejected');
       
       // Hiển thị thông báo
       AwesomeNotifications().createNotification(
@@ -515,7 +532,7 @@ void _handleInvitationAction(String? buttonKey, Map<String, String> payload) asy
 
 /// 🎯 Xử lý action cho device alert
 void _handleDeviceAlertAction(String? buttonKey, Map<String, String> payload) async {
-  final notificationId = payload['notificationId'];
+  final notificationId = payload['firestoreId'] ?? payload['docId'] ?? payload['notificationId'];
   final deviceId = payload['deviceId'];
   final notificationController = Get.find<UnifiedNotificationController>();
   
@@ -563,6 +580,21 @@ void _handleDeviceAlertAction(String? buttonKey, Map<String, String> payload) as
     WidgetsBinding.instance.addPostFrameCallback((_) {
       Get.to(() => NotificationDetailPage(notification: notification));
     });
+  } else if (buttonKey == 'mark_processed') {
+    if (notificationId != null) {
+      print("📖 Marking as processed: $notificationId");
+      await notificationController.markAsProcessed(notificationId);
+      
+      await AwesomeNotifications().createNotification(
+        content: NotificationContent(
+          id: DateTime.now().millisecondsSinceEpoch.remainder(100000),
+          channelKey: 'daily_channel',
+          title: '📖 Đã xử lý',
+          body: 'Thông báo đã được xử lý',
+          notificationLayout: NotificationLayout.Default,
+        ),
+      );
+    }
   }
 }
 
@@ -603,6 +635,19 @@ void _handleForegroundMessage(RemoteMessage message) async {
 
   // 🎯 XỬ LÝ THEO LOẠI NOTIFICATION
   final notificationType = message.data['type'];
+  if (notificationType == 'deviceAlert') {
+    try {
+      await TelegramService.instance.sendAlertNotification(
+        title: message.notification?.title ?? '🚨 Cảnh báo an ninh',
+        message: message.notification?.body ?? 'Phát hiện chuyển động đáng ngờ!',
+        deviceName: message.data['deviceName'] ?? 'Thiết bị an ninh',
+        location: message.data['locationDevice'] ?? 'Vị trí không xác định',
+      );
+      debugPrint('✅ Đã gửi cảnh báo đến Telegram (foreground)');
+    } catch (e) {
+      debugPrint('❌ Lỗi gửi Telegram (foreground): $e');
+    }
+  }
   final notificationId = DateTime.now().millisecondsSinceEpoch.remainder(100000);
   
   // 🎯 TẠO ACTION BUTTONS CHO FOREGROUND TƯƠNG TỰ BACKGROUND
@@ -638,6 +683,12 @@ void _handleForegroundMessage(RemoteMessage message) async {
         autoDismissible: true,
       ),
       NotificationActionButton(
+        key: 'mark_read',
+        label: '✅ Đánh dấu đã đọc',
+        color: Colors.green,
+        autoDismissible: true,
+      ),
+      NotificationActionButton(
         key: 'delete',
         label: '🗑️ Xóa',
         color: Colors.grey,
@@ -666,6 +717,7 @@ void _handleForegroundMessage(RemoteMessage message) async {
           'deviceId': message.data['deviceId'],
           'notificationId': notificationId.toString(),
           'messageId': message.messageId,
+          'firestoreId': message.data['firestoreId'] ?? message.data['docId'],
         },
       ),
       actionButtons: actionButtons,
@@ -748,14 +800,21 @@ void _handleDeviceAlertNotification(RemoteMessage message) {
 
 /// 🎯 Xử lý generic notification
 void _handleGenericNotification(RemoteMessage message) {
-  Get.snackbar(
-    message.notification?.title ?? 'Thông báo',
-    message.notification?.body ?? 'Bạn có thông báo mới',
-    backgroundColor: Colors.blue,
-    colorText: Colors.white,
-    duration: const Duration(seconds: 3),
-  );
+  if (!Get.isRegistered<GetMaterialController>()) return;
+
+  WidgetsBinding.instance.addPostFrameCallback((_) {
+    if (Get.context == null) return;
+
+    Get.snackbar(
+      message.notification?.title ?? 'Thông báo',
+      message.notification?.body ?? 'Bạn có thông báo mới',
+      backgroundColor: Colors.blue,
+      colorText: Colors.white,
+      duration: const Duration(seconds: 3),
+    );
+  });
 }
+
 
 /// 🎯 Xây dựng custom alert dialog cho device alerts
 Widget _buildCustomAlertDialog(RemoteMessage message) {

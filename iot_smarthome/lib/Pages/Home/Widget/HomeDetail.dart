@@ -294,7 +294,11 @@ class _HomeDetailPageState extends State<HomeDetailPage> {
                       ],
                     ),
                     const SizedBox(height: 12),
-                    _buildMembersSection(context, _currentHome, deviceController.getRoleOfHome(_currentHome) ),
+                    _buildMembersSection(
+                      context,
+                      _currentHome,
+                      deviceController.getRoleOfHome(_currentHome),
+                    ),
                     const SizedBox(height: 24),
                   ],
                 ),
@@ -414,10 +418,14 @@ class _HomeDetailPageState extends State<HomeDetailPage> {
     );
   }
 
-  Widget _buildMembersSection(BuildContext context, HomeModel home, HomeRole _currentUserRole) {
+  Widget _buildMembersSection(
+    BuildContext context,
+    HomeModel home,
+    HomeRole _currentUserRole,
+  ) {
     final theme = Theme.of(context);
     final isDarkMode = theme.brightness == Brightness.dark;
-
+    final authController = Get.find<AuthController>();
     // Sử dụng dữ liệu thực từ home.members thay vì giả lập
     final members = home.members;
 
@@ -436,17 +444,29 @@ class _HomeDetailPageState extends State<HomeDetailPage> {
       child: Column(
         children: [
           // Hiển thị chủ nhà đầu tiên
-          _buildMemberTile(
-            context,
-            _MemberInfo(
-              userId: home.ownerId,
-              name: HomeRole.owner.displayName, // Cần fetch tên từ user service
-              email: "", // Cần fetch email từ user service
-              role: HomeRole.owner,
-              isOwner: true,
-              avatar: null,
-            ),
-            _currentUserRole,
+          FutureBuilder(
+            future: authController.getUserById(home.ownerId),
+            builder: (context, asyncSnapshot) {
+              if (asyncSnapshot.connectionState == ConnectionState.waiting) {
+                return const Center(child: CircularProgressIndicator());
+              }
+              final user = asyncSnapshot.data;
+              return _buildMemberTile(
+                context,
+                _MemberInfo(
+                  userId: user!.id ?? "",
+                  name: user.name ?? "",
+                  email: user.email ?? "",
+                  role: HomeRole.owner,
+                  isOwner: true,
+                  avatar: user.profileImage ?? "",
+                  joinedAt: DateFormat(
+                    'HH:mm - dd/MM/yyyy',
+                  ).format(home.createdAt ?? DateTime.now()),
+                ),
+                _currentUserRole,
+              );
+            },
           ),
 
           // Hiển thị các thành viên khác
@@ -509,7 +529,11 @@ class _HomeDetailPageState extends State<HomeDetailPage> {
     );
   }
 
-  Widget _buildMemberTile(BuildContext context, _MemberInfo member, HomeRole currentUserRole) {
+  Widget _buildMemberTile(
+    BuildContext context,
+    _MemberInfo member,
+    HomeRole currentUserRole,
+  ) {
     final theme = Theme.of(context);
 
     return FutureBuilder<Map<String, dynamic>?>(
@@ -551,59 +575,72 @@ class _HomeDetailPageState extends State<HomeDetailPage> {
             ],
           ),
           title: Row(
+            mainAxisSize: MainAxisSize.min, // row không chiếm hết chiều rộng
             children: [
-              Text(
-                member.userId == _auth.currentUser!.uid
-                    ? "(Bạn) $displayName"
-                    : displayName,
-                style: TextStyle(
-                  fontWeight: FontWeight.w500,
-                  color: theme.colorScheme.onSurface,
+              Flexible(
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    // Tên người dùng
+                    Flexible(
+                      child: Text(
+                        member.userId == _auth.currentUser!.uid
+                            ? "(Bạn) $displayName"
+                            : displayName,
+                        style: TextStyle(
+                          fontWeight: FontWeight.w500,
+                          color: theme.colorScheme.onSurface,
+                        ),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    // Spacer nhỏ giữa tên và badge
+                    const SizedBox(width: 6),
+                    // Badge "Chủ nhà" hoặc role
+                    if (member.isOwner)
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.amber.withOpacity(0.2),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text(
+                          "Chủ nhà",
+                          style: TextStyle(
+                            color: Colors.amber[700],
+                            fontSize: 10,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      )
+                    else if (member.role.displayName.isNotEmpty)
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 2,
+                        ),
+                        decoration: BoxDecoration(
+                          color: theme.primaryColor.withOpacity(0.1),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Text(
+                          member.role.displayName,
+                          style: TextStyle(
+                            color: theme.primaryColor,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                  ],
                 ),
               ),
-              if (member.isOwner) ...[
-                const SizedBox(width: 8),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 2,
-                  ),
-                  decoration: BoxDecoration(
-                    color: Colors.amber.withOpacity(0.2),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Text(
-                    "Chủ nhà",
-                    style: TextStyle(
-                      color: Colors.amber[700],
-                      fontSize: 10,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-              ] else if (member.role.displayName.isNotEmpty) ...[
-                const SizedBox(width: 8),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 8,
-                    vertical: 2,
-                  ),
-                  decoration: BoxDecoration(
-                    color: theme.primaryColor.withOpacity(0.1),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Text(
-                    member.role.displayName,
-                    style: TextStyle(
-                      color: theme.primaryColor,
-                      fontSize: 10,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-              ],
             ],
           ),
+
           subtitle: email.isNotEmpty
               ? Text(
                   email,
@@ -613,18 +650,16 @@ class _HomeDetailPageState extends State<HomeDetailPage> {
                   ),
                 )
               : null,
-          trailing: !member.isOwner
-              ? IconButton(
-                  icon: Icon(
-                    Icons.more_vert,
-                    color: theme.colorScheme.onSurface.withOpacity(0.5),
-                    size: 20,
-                  ),
-                  onPressed: () {
-                    _showMemberOptions(context, member, currentUserRole);
-                  },
-                )
-              : null,
+          trailing: IconButton(
+            icon: Icon(
+              Icons.more_vert,
+              color: theme.colorScheme.onSurface.withOpacity(0.5),
+              size: 20,
+            ),
+            onPressed: () {
+              _showMemberOptions(context, member, currentUserRole);
+            },
+          ),
         );
       },
     );
@@ -1094,7 +1129,11 @@ class _HomeDetailPageState extends State<HomeDetailPage> {
     );
   }
 
-  void _showMemberOptions(BuildContext context, _MemberInfo member, HomeRole currentUserRole) {
+  void _showMemberOptions(
+    BuildContext context,
+    _MemberInfo member,
+    HomeRole currentUserRole,
+  ) {
     final theme = Theme.of(context);
 
     showModalBottomSheet(
@@ -1135,8 +1174,13 @@ class _HomeDetailPageState extends State<HomeDetailPage> {
                   ),
                   onTap: () {
                     Navigator.pop(context);
-                    if (currentUserRole == member.role) DialogUtils.showErrorDialog(context, "Bạn và thành viên này có cùng quyền");
-                    else _showRoleManagementDialog(context, member);
+                    if (currentUserRole == member.role)
+                      DialogUtils.showErrorDialog(
+                        context,
+                        "Bạn và thành viên này có cùng quyền",
+                      );
+                    else
+                      _showRoleManagementDialog(context, member);
                     // Phân quyền thành viên
                   },
                 ),
@@ -1162,8 +1206,6 @@ class _HomeDetailPageState extends State<HomeDetailPage> {
       },
     );
   }
-
-  
 
   Widget _buildInfoRow(
     BuildContext context,

@@ -1514,6 +1514,9 @@ Future<void> _shareRoom(BuildContext context, HomeModel home, String roomId) asy
                         if (value == "edit") {
                           DialogUtils.showAddDeviceDialog(context, homeId, roomId,editDevice: true,device: device);
                         }
+                        if (value == "auto" || value == "manual") {
+                          await deviceController.updateStatus(homeId, roomId, device.id, status.copyWith(mode: status.mode == "auto" ? "manual" : "auto"));
+                        }
                       },
                       itemBuilder: (context) => [
                         PopupMenuItem(
@@ -1530,6 +1533,14 @@ Future<void> _shareRoom(BuildContext context, HomeModel home, String roomId) asy
                             style: TextStyle(fontSize: isSmallDevice ? 12 : 14),
                           ),
                         ),
+                        if (device.type == "Trash")
+                          PopupMenuItem(
+                            value: status.mode == "auto" ? "manual" : "auto",
+                            child: Text(
+                              "Chuyển sang chế độ : ${status.mode == "auto" ? "điều khiển" : "tự động"}" ,
+                              style: TextStyle(fontSize: isSmallDevice ? 12 : 14),
+                            ),
+                          ),
                       ],
                     ),
                 ],

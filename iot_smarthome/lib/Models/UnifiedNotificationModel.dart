@@ -66,7 +66,32 @@ class UnifiedNotificationModel {
     this.homeName,
     this.status,
   });
-
+  UnifiedNotificationModel copyWith({bool? isProcessed}) {
+    return UnifiedNotificationModel(
+      id: id,
+      isRead: isRead,
+      message: message,
+      timestamp: timestamp,
+      createdAt: createdAt,
+      type: type,
+      deviceId: deviceId,
+      homeId: homeId,
+      roomId: roomId,
+      locationDevice: locationDevice,
+      deviceType: deviceType,
+      deviceName: deviceName,
+      invitationId: invitationId,
+      fromUserId: fromUserId,
+      fromUserName: fromUserName,
+      fromUserEmail: fromUserEmail,
+      toUserEmail: toUserEmail,
+      toUserId: toUserId,
+      invitationHomeId: invitationHomeId,
+      homeName: homeName,
+      status: status,
+      isProcessed: isProcessed ?? this.isProcessed,
+    );
+  }
   factory UnifiedNotificationModel.fromMap(Map<String, dynamic> data, String documentId) {
     final typeString = data['type'] ?? 'deviceAlert';
     final notificationType = _parseNotificationType(typeString);

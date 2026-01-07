@@ -1107,7 +1107,7 @@ class AddRoomDialog {
                             SizedBox(
                               height: 200,
                               child: GridView.builder(
-                                physics: const NeverScrollableScrollPhysics(),
+                                physics: const BouncingScrollPhysics(),
                                 gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                                   crossAxisCount: MediaQuery.of(context).size.width > 400 ? 4 : 3,
                                   crossAxisSpacing: 8,
@@ -1557,7 +1557,7 @@ class EditRoomDialog {
                             SizedBox(
                               height: 200,
                               child: GridView.builder(
-                                physics: const NeverScrollableScrollPhysics(),
+                                physics: const ScrollPhysics(),
                                 gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
                                   crossAxisCount: MediaQuery.of(context).size.width > 400 ? 4 : 3,
                                   crossAxisSpacing: 8,

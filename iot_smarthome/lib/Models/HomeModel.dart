@@ -1,3 +1,4 @@
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:iot_smarthome/Models/RoomModel.dart';
 
 class HomeModel {
@@ -37,16 +38,32 @@ factory HomeModel.fromMap(String id, Map<String, dynamic> map) {
     location: map['location'],
     latitude: map['latitude']?.toDouble(),
     longitude: map['longitude']?.toDouble(),
-    rooms: [], // load room riêng sau
-    members: _parseMembers(map['members']), // Parse members từ Firestore
-    createdAt: map['createdAt'] != null 
-        ? DateTime.fromMillisecondsSinceEpoch(map['createdAt'])
-        : null,
-    updatedAt: map['updatedAt'] != null 
-        ? DateTime.fromMillisecondsSinceEpoch(map['updatedAt'])
-        : null,
+    rooms: [], // load riêng
+    members: _parseMembers(map['members']),
+    createdAt: _parseTimestamp(map['createdAt']), // 🎯 SỬA DÒNG NÀY
+    updatedAt: _parseTimestamp(map['updatedAt']), // 🎯 SỬA DÒNG NÀY
   );
 }
+
+// Helper method để parse Timestamp hoặc int
+static DateTime? _parseTimestamp(dynamic timestampData) {
+  if (timestampData == null) return null;
+  
+  if (timestampData is Timestamp) {
+    return timestampData.toDate();
+  } else if (timestampData is int) {
+    return DateTime.fromMillisecondsSinceEpoch(timestampData);
+  } else if (timestampData is String) {
+    try {
+      // Thử parse từ string
+      return DateTime.parse(timestampData);
+    } catch (e) {
+      return null;
+    }
+  }
+  return null;
+}
+
 
 // Helper method để parse members
 static List<HomeMember> _parseMembers(dynamic membersData) {

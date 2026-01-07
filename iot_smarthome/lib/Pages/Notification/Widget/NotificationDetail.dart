@@ -4,27 +4,38 @@ import 'package:intl/intl.dart';
 import 'package:iot_smarthome/Controllers/UnifiedNotificationController.dart';
 import 'package:iot_smarthome/Models/UnifiedNotificationModel.dart';
 
-
-class NotificationDetailPage extends StatelessWidget {
+class NotificationDetailPage extends StatefulWidget {
   final UnifiedNotificationModel notification;
   const NotificationDetailPage({super.key, required this.notification});
 
   @override
+  State<NotificationDetailPage> createState() => _NotificationDetailPageState();
+}
+
+class _NotificationDetailPageState extends State<NotificationDetailPage> {
+  late UnifiedNotificationModel notification;
+
+  @override
+  void initState() {
+    super.initState();
+    notification = widget.notification;
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final isUrgent = notification.isDeviceAlert && 
-                    (notification.deviceType?.toLowerCase().contains('security') == true ||
-                     notification.message.toLowerCase().contains('cảnh báo') ||
-                     notification.message.toLowerCase().contains('alert'));
-    
+    final isUrgent =
+        notification.isDeviceAlert &&
+        (notification.deviceType?.toLowerCase().contains('security') ==
+                true ||
+            notification.message.toLowerCase().contains('cảnh báo') ||
+            notification.message.toLowerCase().contains('alert'));
+
     return Scaffold(
       backgroundColor: Colors.grey[50],
       appBar: AppBar(
         title: Text(
           _getAppBarTitle(),
-          style: const TextStyle(
-            fontWeight: FontWeight.bold,
-            fontSize: 18,
-          ),
+          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
         ),
         centerTitle: true,
         backgroundColor: _getAppBarColor(isUrgent),
@@ -49,20 +60,20 @@ class NotificationDetailPage extends StatelessWidget {
           children: [
             // 🎯 CARD THÔNG TIN CHÍNH
             _buildMainAlertCard(context, isUrgent),
-            
+
             const SizedBox(height: 20),
-            
+
             // 🎯 THÔNG TIN CHI TIẾT
             _buildDetailInfoCard(context),
-            
+
             const SizedBox(height: 20),
-            
+
             // 🎯 HÌNH ẢNH MÔ PHỎNG (chỉ hiển thị với device alerts)
             if (notification.isDeviceAlert) ...[
               _buildCameraPreview(),
               const SizedBox(height: 20),
             ],
-            
+
             // 🎯 HÀNH ĐỘNG
             _buildActionButtons(),
           ],
@@ -91,8 +102,8 @@ class NotificationDetailPage extends StatelessWidget {
     } else if (notification.isInvitation) {
       return const Color(0xFF9B59B6);
     } else if (notification.isInvitationResponse) {
-      return notification.status == 'accepted' 
-          ? const Color(0xFF27AE60) 
+      return notification.status == 'accepted'
+          ? const Color(0xFF27AE60)
           : const Color(0xFFE74C3C);
     } else {
       return const Color(0xFF3498DB);
@@ -129,15 +140,11 @@ class NotificationDetailPage extends StatelessWidget {
               color: Colors.white.withOpacity(0.2),
               shape: BoxShape.circle,
             ),
-            child: Icon(
-              _getMainIcon(),
-              color: Colors.white,
-              size: 35,
-            ),
+            child: Icon(_getMainIcon(), color: Colors.white, size: 35),
           ),
-          
+
           const SizedBox(height: 16),
-          
+
           // Tiêu đề
           Text(
             _getMainTitle(),
@@ -149,12 +156,12 @@ class NotificationDetailPage extends StatelessWidget {
             ),
             textAlign: TextAlign.center,
           ),
-          
+
           const SizedBox(height: 12),
-          
+
           // Nội dung
           Text(
-            notification.message,
+            widget.notification.message,
             style: TextStyle(
               color: Colors.white.withOpacity(0.9),
               fontSize: 16,
@@ -162,9 +169,9 @@ class NotificationDetailPage extends StatelessWidget {
             ),
             textAlign: TextAlign.center,
           ),
-          
+
           const SizedBox(height: 16),
-          
+
           // Trạng thái
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -188,16 +195,16 @@ class NotificationDetailPage extends StatelessWidget {
 
   /// 🎯 Lấy màu gradient cho card
   List<Color> _getCardGradientColors(bool isUrgent) {
-    if (notification.isDeviceAlert) {
-      return isUrgent 
-        ? [const Color(0xFFE74C3C), const Color(0xFFC0392B)]
-        : [const Color(0xFF3498DB), const Color(0xFF2980B9)];
-    } else if (notification.isInvitation) {
+    if (widget.notification.isDeviceAlert) {
+      return isUrgent
+          ? [const Color(0xFFE74C3C), const Color(0xFFC0392B)]
+          : [const Color(0xFF3498DB), const Color(0xFF2980B9)];
+    } else if (widget.notification.isInvitation) {
       return [const Color(0xFF9B59B6), const Color(0xFF8E44AD)];
-    } else if (notification.isInvitationResponse) {
-      return notification.status == 'accepted'
-        ? [const Color(0xFF27AE60), const Color(0xFF229954)]
-        : [const Color(0xFFE74C3C), const Color(0xFFC0392B)];
+    } else if (widget.notification.isInvitationResponse) {
+      return widget.notification.status == 'accepted'
+          ? [const Color(0xFF27AE60), const Color(0xFF229954)]
+          : [const Color(0xFFE74C3C), const Color(0xFFC0392B)];
     } else {
       return [const Color(0xFF3498DB), const Color(0xFF2980B9)];
     }
@@ -205,13 +212,13 @@ class NotificationDetailPage extends StatelessWidget {
 
   /// 🎯 Lấy màu shadow cho card
   Color _getCardShadowColor(bool isUrgent) {
-    if (notification.isDeviceAlert) {
+    if (widget.notification.isDeviceAlert) {
       return isUrgent ? const Color(0xFFE74C3C) : const Color(0xFF3498DB);
-    } else if (notification.isInvitation) {
+    } else if (widget.notification.isInvitation) {
       return const Color(0xFF9B59B6);
-    } else if (notification.isInvitationResponse) {
-      return notification.status == 'accepted' 
-          ? const Color(0xFF27AE60) 
+    } else if (widget.notification.isInvitationResponse) {
+      return widget.notification.status == 'accepted'
+          ? const Color(0xFF27AE60)
           : const Color(0xFFE74C3C);
     } else {
       return const Color(0xFF3498DB);
@@ -220,14 +227,23 @@ class NotificationDetailPage extends StatelessWidget {
 
   /// 🎯 Lấy icon chính
   IconData _getMainIcon() {
-    if (notification.isDeviceAlert) {
-      final isUrgent = notification.deviceType?.toLowerCase().contains('security') == true;
-      return isUrgent ? Icons.security_rounded : Icons.device_thermostat_rounded;
-    } else if (notification.isInvitation) {
+    if (widget.notification.isDeviceAlert) {
+      final deviceType = widget.notification.deviceType?.toLowerCase();
+      switch (deviceType) {
+        case 'security':
+          return Icons.security_rounded;
+        case 'trash':
+          return Icons.delete;
+        case 'rfid':
+          return Icons.sensors;
+        default:
+          return Icons.device_thermostat_rounded;
+      }
+    } else if (widget.notification.isInvitation) {
       return Icons.mail_outline_rounded;
-    } else if (notification.isInvitationResponse) {
-      return notification.status == 'accepted' 
-          ? Icons.check_circle_rounded 
+    } else if (widget.notification.isInvitationResponse) {
+      return widget.notification.status == 'accepted'
+          ? Icons.check_circle_rounded
           : Icons.cancel_rounded;
     } else {
       return Icons.notifications_active_rounded;
@@ -236,13 +252,13 @@ class NotificationDetailPage extends StatelessWidget {
 
   /// 🎯 Lấy tiêu đề chính
   String _getMainTitle() {
-    if (notification.isDeviceAlert) {
-      return notification.deviceName ?? 'Thiết bị';
-    } else if (notification.isInvitation) {
+    if (widget.notification.isDeviceAlert) {
+      return widget.notification.deviceName ?? 'Thiết bị';
+    } else if (widget.notification.isInvitation) {
       return 'Lời Mời Tham Gia';
-    } else if (notification.isInvitationResponse) {
-      return notification.status == 'accepted' 
-          ? 'Lời Mời Được Chấp Nhận' 
+    } else if (widget.notification.isInvitationResponse) {
+      return widget.notification.status == 'accepted'
+          ? 'Lời Mời Được Chấp Nhận'
           : 'Lời Mời Bị Từ Chối';
     } else {
       return 'Thông Báo';
@@ -251,13 +267,17 @@ class NotificationDetailPage extends StatelessWidget {
 
   /// 🎯 Lấy badge trạng thái
   String _getStatusBadge() {
-    if (notification.isDeviceAlert) {
-      final isUrgent = notification.deviceType?.toLowerCase().contains('security') == true;
+    if (widget.notification.isDeviceAlert) {
+      final isUrgent =
+          widget.notification.deviceType?.toLowerCase().contains('security') ==
+          true;
       return isUrgent ? '🚨 CẢNH BÁO KHẨN CẤP' : '💬 THÔNG BÁO THIẾT BỊ';
-    } else if (notification.isInvitation) {
+    } else if (widget.notification.isInvitation) {
       return '📨 LỜI MỜI';
-    } else if (notification.isInvitationResponse) {
-      return notification.status == 'accepted' ? '✅ ĐÃ CHẤP NHẬN' : '❌ ĐÃ TỪ CHỐI';
+    } else if (widget.notification.isInvitationResponse) {
+      return widget.notification.status == 'accepted'
+          ? '✅ ĐÃ CHẤP NHẬN'
+          : '❌ ĐÃ TỪ CHỐI';
     } else {
       return '💬 THÔNG BÁO';
     }
@@ -293,47 +313,46 @@ class NotificationDetailPage extends StatelessWidget {
               const SizedBox(width: 8),
               const Text(
                 'Thông Tin Chi Tiết',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                ),
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
               ),
             ],
           ),
-          
+
           const SizedBox(height: 16),
-          
+
           // Dòng thông tin thời gian
           _buildDetailRow(
             Icons.access_time_rounded,
             'Thời gian nhận',
-            DateFormat('HH:mm - dd/MM/yyyy').format(notification.createdAt ?? DateTime.now()),
+            DateFormat(
+              'HH:mm - dd/MM/yyyy',
+            ).format(widget.notification.createdAt ?? DateTime.now()),
           ),
-          
+
           const SizedBox(height: 12),
-          
+
           // Dòng thông tin trạng thái
           _buildDetailRow(
             Icons.verified_rounded,
             'Trạng thái',
-            notification.isProcessed ? 'Đã xử lý' : 'Chưa xử lý',
+            widget.notification.isProcessed ? 'Đã xử lý' : 'Chưa xử lý',
           ),
-          
-          if (notification.isDeviceAlert) ...[
+
+          if (widget.notification.isDeviceAlert) ...[
             const SizedBox(height: 12),
             _buildDetailRow(
               Icons.location_pin,
               'Khu vực',
-              notification.locationDevice ?? 'Không xác định',
+              widget.notification.locationDevice ?? 'Không xác định',
             ),
-            
+
             const SizedBox(height: 12),
             _buildDetailRow(
               Icons.device_hub_rounded,
               'Loại thiết bị',
-              notification.deviceType ?? 'Không xác định',
+              widget.notification.deviceType ?? 'Không xác định',
             ),
-            
+
             const SizedBox(height: 12),
             _buildDetailRow(
               Icons.priority_high_rounded,
@@ -341,36 +360,39 @@ class NotificationDetailPage extends StatelessWidget {
               _getPriorityLevel(),
               valueColor: _getPriorityColor(),
             ),
-          ] else if (notification.isInvitation || notification.isInvitationResponse) ...[
+          ] else if (widget.notification.isInvitation ||
+              widget.notification.isInvitationResponse) ...[
             const SizedBox(height: 12),
             _buildDetailRow(
               Icons.person_rounded,
               'Người gửi',
-              notification.fromUserName ?? 'Không xác định',
+              widget.notification.fromUserName ?? 'Không xác định',
             ),
-            
+
             const SizedBox(height: 12),
             _buildDetailRow(
               Icons.email_rounded,
               'Email',
-              notification.fromUserEmail ?? 'Không xác định',
+              widget.notification.fromUserEmail ?? 'Không xác định',
             ),
-            
+
             const SizedBox(height: 12),
             _buildDetailRow(
               Icons.home_rounded,
               'Ngôi nhà',
-              notification.homeName ?? 'Không xác định',
+              widget.notification.homeName ?? 'Không xác định',
             ),
-            
-            if (notification.isInvitationResponse) ...[
+
+            if (widget.notification.isInvitationResponse) ...[
               const SizedBox(height: 12),
               _buildDetailRow(
                 Icons.star_rate_rounded,
                 'Kết quả',
-                notification.status == 'accepted' ? 'Đã chấp nhận' : 'Đã từ chối',
-                valueColor: notification.status == 'accepted' 
-                    ? const Color(0xFF27AE60) 
+                widget.notification.status == 'accepted'
+                    ? 'Đã chấp nhận'
+                    : 'Đã từ chối',
+                valueColor: widget.notification.status == 'accepted'
+                    ? const Color(0xFF27AE60)
                     : const Color(0xFFE74C3C),
               ),
             ],
@@ -382,10 +404,12 @@ class NotificationDetailPage extends StatelessWidget {
 
   /// 🎯 Lấy mức độ ưu tiên
   String _getPriorityLevel() {
-    if (notification.isDeviceAlert) {
-      final isSecurity = notification.deviceType?.toLowerCase().contains('security') == true;
+    if (widget.notification.isDeviceAlert) {
+      final isSecurity =
+          widget.notification.deviceType?.toLowerCase().contains('security') ==
+          true;
       return isSecurity ? 'Cao' : 'Trung bình';
-    } else if (notification.isInvitation) {
+    } else if (widget.notification.isInvitation) {
       return 'Trung bình';
     } else {
       return 'Thấp';
@@ -408,23 +432,21 @@ class NotificationDetailPage extends StatelessWidget {
   }
 
   /// 🎯 Dòng thông tin chi tiết
-  Widget _buildDetailRow(IconData icon, String label, String value, {Color? valueColor}) {
+  Widget _buildDetailRow(
+    IconData icon,
+    String label,
+    String value, {
+    Color? valueColor,
+  }) {
     return Row(
       children: [
-        Icon(
-          icon,
-          color: Colors.grey[600],
-          size: 18,
-        ),
+        Icon(icon, color: Colors.grey[600], size: 18),
         const SizedBox(width: 12),
         Expanded(
           flex: 2,
           child: Text(
             label,
-            style: TextStyle(
-              color: Colors.grey[600],
-              fontSize: 14,
-            ),
+            style: TextStyle(color: Colors.grey[600], fontSize: 14),
           ),
         ),
         Expanded(
@@ -474,15 +496,12 @@ class NotificationDetailPage extends StatelessWidget {
                 const SizedBox(width: 8),
                 const Text(
                   'Hình ảnh phát hiện',
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.bold,
-                  ),
+                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
                 ),
               ],
             ),
           ),
-          
+
           // Placeholder hình ảnh
           Container(
             height: 200,
@@ -505,10 +524,7 @@ class NotificationDetailPage extends StatelessWidget {
                 const SizedBox(height: 8),
                 Text(
                   'Không có hình ảnh',
-                  style: TextStyle(
-                    color: Colors.grey[500],
-                    fontSize: 14,
-                  ),
+                  style: TextStyle(color: Colors.grey[500], fontSize: 14),
                 ),
                 const SizedBox(height: 12),
                 ElevatedButton.icon(
@@ -545,7 +561,8 @@ class NotificationDetailPage extends StatelessWidget {
   Widget _buildActionButtons() {
     return Row(
       children: [
-        if (notification.isDeviceAlert && !notification.isProcessed) ...[
+        if (widget.notification.isDeviceAlert &&
+            !widget.notification.isProcessed) ...[
           // Nút đánh dấu đã xử lý (chỉ cho device alerts chưa xử lý)
           Expanded(
             child: Container(
@@ -579,15 +596,13 @@ class NotificationDetailPage extends StatelessWidget {
           ),
           const SizedBox(width: 12),
         ],
-        
+
         // Nút xem thêm
         Expanded(
           child: Container(
             height: 50,
             decoration: BoxDecoration(
-              gradient: LinearGradient(
-                colors: _getActionButtonGradient(),
-              ),
+              gradient: LinearGradient(colors: _getActionButtonGradient()),
               borderRadius: BorderRadius.circular(12),
               boxShadow: [
                 BoxShadow(
@@ -621,9 +636,9 @@ class NotificationDetailPage extends StatelessWidget {
 
   /// 🎯 Lấy gradient cho nút hành động
   List<Color> _getActionButtonGradient() {
-    if (notification.isDeviceAlert) {
+    if (widget.notification.isDeviceAlert) {
       return [const Color(0xFF3498DB), const Color(0xFF2980B9)];
-    } else if (notification.isInvitation) {
+    } else if (widget.notification.isInvitation) {
       return [const Color(0xFF9B59B6), const Color(0xFF8E44AD)];
     } else {
       return [const Color(0xFF27AE60), const Color(0xFF229954)];
@@ -632,9 +647,9 @@ class NotificationDetailPage extends StatelessWidget {
 
   /// 🎯 Lấy màu shadow cho nút hành động
   Color _getActionButtonShadowColor() {
-    if (notification.isDeviceAlert) {
+    if (widget.notification.isDeviceAlert) {
       return const Color(0xFF3498DB);
-    } else if (notification.isInvitation) {
+    } else if (widget.notification.isInvitation) {
       return const Color(0xFF9B59B6);
     } else {
       return const Color(0xFF27AE60);
@@ -643,9 +658,9 @@ class NotificationDetailPage extends StatelessWidget {
 
   /// 🎯 Lấy icon cho nút hành động
   IconData _getActionButtonIcon() {
-    if (notification.isDeviceAlert) {
+    if (widget.notification.isDeviceAlert) {
       return Icons.remove_red_eye_rounded;
-    } else if (notification.isInvitation) {
+    } else if (widget.notification.isInvitation) {
       return Icons.group_add_rounded;
     } else {
       return Icons.history_rounded;
@@ -654,9 +669,9 @@ class NotificationDetailPage extends StatelessWidget {
 
   /// 🎯 Lấy text cho nút hành động
   String _getActionButtonText() {
-    if (notification.isDeviceAlert) {
+    if (widget.notification.isDeviceAlert) {
       return 'Xem Thêm';
-    } else if (notification.isInvitation) {
+    } else if (widget.notification.isInvitation) {
       return 'Quản Lý';
     } else {
       return 'Lịch Sử';
@@ -665,25 +680,26 @@ class NotificationDetailPage extends StatelessWidget {
 
   /// 🎯 Hàm chia sẻ thông tin cảnh báo
   void _shareAlertDetails() {
-    final shareContent = '''
+    final shareContent =
+        '''
 🚨 Thông Báo An Ninh
 
-${notification.deviceName ?? 'Thiết bị'}
-${notification.message}
+${widget.notification.deviceName ?? 'Thiết bị'}
+${widget.notification.message}
 
-⏰ Thời gian: ${DateFormat('HH:mm dd/MM/yyyy').format(notification.createdAt ?? DateTime.now())}
-📍 Khu vực: ${notification.locationDevice ?? 'Không xác định'}
+⏰ Thời gian: ${DateFormat('HH:mm dd/MM/yyyy').format(widget.notification.createdAt ?? DateTime.now())}
+📍 Khu vực: ${widget.notification.locationDevice ?? 'Không xác định'}
 
 Được gửi từ ứng dụng An Ninh Thông Minh
     ''';
-    
+
     Get.snackbar(
       'Chia sẻ thông tin',
       'Tính năng chia sẻ đang được phát triển',
       backgroundColor: Colors.blue[50],
       snackPosition: SnackPosition.BOTTOM,
     );
-    
+
     print('Nội dung chia sẻ: $shareContent');
   }
 
@@ -695,7 +711,11 @@ ${notification.message}
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: const Column(
           children: [
-            Icon(Icons.check_circle_rounded, color: Color(0xFF27AE60), size: 50),
+            Icon(
+              Icons.check_circle_rounded,
+              color: Color(0xFF27AE60),
+              size: 50,
+            ),
             SizedBox(height: 10),
             Text(
               'Xác Nhận Đã Xử Lý',
@@ -708,22 +728,28 @@ ${notification.message}
           textAlign: TextAlign.center,
         ),
         actions: [
-          TextButton(
-            onPressed: () => Get.back(),
-            child: const Text('Hủy'),
-          ),
+          TextButton(onPressed: () => Get.back(), child: const Text('Hủy')),
           ElevatedButton(
             onPressed: () async {
-              await notificationController.markAsProcessed(notification.id);
-              Get.back(); // Quay lại màn hình trước
-              Get.snackbar(
-                'Thành công',
-                'Đã đánh dấu cảnh báo là đã xử lý',
-                backgroundColor: Colors.green[50],
-                colorText: Colors.green,
-                snackPosition: SnackPosition.BOTTOM,
-              );
-            },
+                await notificationController.markAsProcessed(
+                  notification.id,
+                );
+
+                
+                setState(() {
+                  notification = notification.copyWith(isProcessed: true);
+                });
+
+                Get.back();
+
+                Get.snackbar(
+                  'Thành công',
+                  'Đã đánh dấu cảnh báo là đã xử lý',
+                  backgroundColor: Colors.green[50],
+                  colorText: Colors.green,
+                );
+              },
+
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFF27AE60),
             ),
@@ -742,29 +768,34 @@ ${notification.message}
     String title = '';
     String content = '';
 
-    if (notification.isDeviceAlert) {
+    if (widget.notification.isDeviceAlert) {
       title = 'Lịch Sử Cảnh Báo';
-      content = 'Tính năng xem lịch sử chi tiết và phân tích cảnh báo sẽ có trong phiên bản tới.';
-    } else if (notification.isInvitation) {
+      content =
+          'Tính năng xem lịch sử chi tiết và phân tích cảnh báo sẽ có trong phiên bản tới.';
+    } else if (widget.notification.isInvitation) {
       title = 'Quản Lý Lời Mời';
-      content = 'Tính năng quản lý và theo dõi lời mời sẽ có trong phiên bản tới.';
+      content =
+          'Tính năng quản lý và theo dõi lời mời sẽ có trong phiên bản tới.';
     } else {
       title = 'Lịch Sử Phản Hồi';
-      content = 'Tính năng xem lịch sử phản hồi lời mời sẽ có trong phiên bản tới.';
+      content =
+          'Tính năng xem lịch sử phản hồi lời mời sẽ có trong phiên bản tới.';
     }
 
-    Get.to(() => Scaffold(
-      appBar: AppBar(title: Text(title)),
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(20.0),
-          child: Text(
-            content,
-            textAlign: TextAlign.center,
-            style: const TextStyle(fontSize: 16, color: Colors.grey),
+    Get.to(
+      () => Scaffold(
+        appBar: AppBar(title: Text(title)),
+        body: Center(
+          child: Padding(
+            padding: const EdgeInsets.all(20.0),
+            child: Text(
+              content,
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 16, color: Colors.grey),
+            ),
           ),
         ),
       ),
-    ));
+    );
   }
 }
